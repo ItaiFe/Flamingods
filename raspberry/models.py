@@ -37,7 +37,16 @@ class DeviceType(str, Enum):
     S60 = "S60"      # WiFi Socket with Power Monitoring and USB
     S20 = "S20"      # WiFi Socket with Power Monitoring
     S10 = "S10"      # Basic WiFi Socket
+    STAGE = "STAGE"  # Stage ESP32 LED Controller
     UNKNOWN = "unknown"
+
+
+class StageLightingPlan(str, Enum):
+    """Stage lighting plan enumeration"""
+    IDLE = "idle"        # Ambient background lighting
+    SKIP = "skip"        # Quick scene transitions
+    SHOW = "show"        # Main performance lighting
+    SPECIAL = "special"  # Special effects
 
 
 class ConnectionType(str, Enum):
@@ -105,6 +114,156 @@ class DeviceControl(BaseModel):
         if v is not None and (v < 0 or v > 86400):  # 24 hours in seconds
             raise ValueError('Timer must be between 0 and 86400 seconds')
         return v
+
+
+class StageControl(BaseModel):
+    """Stage lighting control command model"""
+    
+    # Control parameters
+    plan: StageLightingPlan = Field(..., description="Lighting plan to activate")
+    
+    # Optional parameters
+    brightness: Optional[int] = Field(default=None, description="Brightness level (0-255)")
+    duration: Optional[int] = Field(default=None, description="Duration in seconds (0 for infinite)")
+    auto_return: Optional[bool] = Field(default=None, description="Auto-return to previous plan")
+    
+    # Validation
+    @validator('brightness')
+    def validate_brightness(cls, v):
+        if v is not None and (v < 0 or v > 255):
+            raise ValueError('Brightness must be between 0 and 255')
+        return v
+    
+    @validator('duration')
+    def validate_duration(cls, v):
+        if v is not None and v < 0:
+            raise ValueError('Duration must be non-negative')
+        return v
+
+
+class StageResponse(BaseModel):
+    """Stage control response model"""
+    
+    # Response status
+    success: bool = Field(..., description="Operation success status")
+    message: str = Field(..., description="Response message")
+    
+    # Stage information
+    device_id: str = Field(..., description="Stage device identifier")
+    current_plan: StageLightingPlan = Field(..., description="Current active lighting plan")
+    previous_plan: Optional[StageLightingPlan] = Field(default=None, description="Previous lighting plan")
+    
+    # Additional data
+    data: Optional[Dict[str, Any]] = Field(default=None, description="Additional response data")
+    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp")
+    
+    class Config:
+        use_enum_values = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class StageStatus(BaseModel):
+    """Stage device status model"""
+    
+    # Device identification
+    device_id: str = Field(..., description="Stage device identifier")
+    name: str = Field(..., description="Stage device name")
+    
+    # Current status
+    current_plan: StageLightingPlan = Field(..., description="Current active lighting plan")
+    wifi_connected: bool = Field(..., description="WiFi connection status")
+    ip_address: str = Field(..., description="Device IP address")
+    
+    # System information
+    uptime: int = Field(..., description="Device uptime in seconds")
+    firmware_version: str = Field(..., description="Firmware version")
+    rssi: Optional[int] = Field(default=None, description="WiFi signal strength")
+    
+    # OTA status
+    ota_in_progress: bool = Field(default=False, description="OTA update in progress")
+    ota_progress: Optional[int] = Field(default=None, description="OTA progress percentage")
+    
+    # Timestamp
+    last_update: datetime = Field(default_factory=datetime.utcnow, description="Last status update")
+    
+    class Config:
+        use_enum_values = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
+
+
+class StagePlanInfo(BaseModel):
+    """Stage lighting plan information model"""
+    
+    # Plan details
+    plan: StageLightingPlan = Field(..., description="Lighting plan identifier")
+    name: str = Field(..., description="Human-readable plan name")
+    description: str = Field(..., description="Plan description and purpose")
+    
+    # Plan characteristics
+    purpose: str = Field(..., description="Intended use case")
+    pattern: str = Field(..., description="Lighting pattern description")
+    speed: str = Field(..., description="Animation speed description")
+    brightness: str = Field(..., description="Brightness level description")
+    auto_return: bool = Field(..., description="Whether plan auto-returns to previous")
+    
+    # Duration information
+    typical_duration: Optional[int] = Field(default=None, description="Typical duration in seconds")
+    is_transitional: bool = Field(..., description="Whether this is a transition plan")
+
+
+class BulkStageControl(BaseModel):
+    """Bulk stage control model"""
+    
+    # Control parameters
+    stages: List[str] = Field(..., description="List of stage device IDs to control")
+    plan: StageLightingPlan = Field(..., description="Lighting plan to activate")
+    
+    # Optional parameters
+    delay: Optional[float] = Field(default=None, description="Delay between commands in seconds")
+    sequence: Optional[List[StageLightingPlan]] = Field(default=None, description="Sequence of plans to execute")
+    timing: Optional[Dict[str, int]] = Field(default=None, description="Timing for sequence execution")
+    
+    # Validation
+    @validator('stages')
+    def validate_stages(cls, v):
+        if not v:
+            raise ValueError('Stage list cannot be empty')
+        if len(v) > 10:
+            raise ValueError('Cannot control more than 10 stages at once')
+        return v
+    
+    @validator('delay')
+    def validate_delay(cls, v):
+        if v is not None and (v < 0 or v > 60):
+            raise ValueError('Delay must be between 0 and 60 seconds')
+        return v
+
+
+class BulkStageResponse(BaseModel):
+    """Bulk stage control response model"""
+    
+    # Overall results
+    total_stages: int = Field(..., description="Total number of stages")
+    successful: int = Field(..., description="Number of successful operations")
+    failed: int = Field(..., description="Number of failed operations")
+    
+    # Detailed results
+    results: List[StageResponse] = Field(..., description="Individual stage results")
+    
+    # Operation metadata
+    operation_id: str = Field(..., description="Unique operation identifier")
+    duration: float = Field(..., description="Operation duration in seconds")
+    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Operation timestamp")
+    
+    class Config:
+        use_enum_values = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 
 class DeviceResponse(BaseModel):

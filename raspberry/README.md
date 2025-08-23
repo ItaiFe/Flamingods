@@ -1,6 +1,6 @@
-# Sonoff WiFi Socket Server
+# Sonoff WiFi Socket & Stage LED Server
 
-A FastAPI-based server for controlling Sonoff WiFi sockets in the Midburn project. This server provides local control over Sonoff devices without requiring cloud connectivity.
+A FastAPI-based server for controlling Sonoff WiFi sockets and Stage ESP32 LED controllers in the Midburn project. This server provides local control over Sonoff devices and stage lighting without requiring cloud connectivity.
 
 ## 🎯 Features
 
@@ -10,6 +10,9 @@ A FastAPI-based server for controlling Sonoff WiFi sockets in the Midburn projec
 - **Power Monitoring**: Support for devices with power monitoring capabilities
 - **Bulk Operations**: Control multiple devices simultaneously
 - **Offline Operation**: Works completely offline without internet connection
+- **Stage LED Control**: Control Stage ESP32 LED controllers with 4 lighting plans
+- **Lighting Plans**: IDLE, SKIP, SHOW, and SPECIAL lighting modes
+- **Real-time Stage Updates**: WebSocket integration for stage lighting changes
 
 ## 🏗️ Architecture
 
@@ -115,6 +118,15 @@ asyncio.run(main())
 
 - `POST /devices/bulk/control` - Control multiple devices simultaneously
 
+### Stage LED Control
+
+- `POST /stage/idle` - Switch to IDLE lighting plan (ambient background)
+- `POST /stage/skip` - Switch to SKIP lighting plan (quick transitions)
+- `POST /stage/show` - Switch to SHOW lighting plan (performance mode)
+- `POST /stage/special` - Switch to SPECIAL lighting plan (special effects)
+- `GET /stage/status` - Get current stage device status
+- `GET /stage/health` - Check stage device health
+
 ### System Information
 
 - `GET /health` - Server health status
@@ -170,6 +182,28 @@ ws.send(JSON.stringify({
 }));
 ```
 
+### Stage LED Control
+
+```bash
+# Switch to IDLE mode (ambient background)
+curl -X POST "http://localhost:8000/stage/idle"
+
+# Switch to SHOW mode (performance lighting)
+curl -X POST "http://localhost:8000/stage/show"
+
+# Switch to SKIP mode (quick transitions)
+curl -X POST "http://localhost:8000/stage/skip"
+
+# Switch to SPECIAL mode (special effects)
+curl -X POST "http://localhost:8000/stage/special"
+
+# Check stage status
+curl "http://localhost:8000/stage/status"
+
+# Check stage health
+curl "http://localhost:8000/stage/health"
+```
+
 ## ⚙️ Configuration
 
 ### Environment Variables
@@ -187,6 +221,19 @@ SERVER_DEBUG=false
 # Device discovery
 SONOFF_DISCOVERY_TIMEOUT=30
 SONOFF_MAX_DEVICES=100
+SONOFF_REQUEST_TIMEOUT=10
+SONOFF_RETRY_ATTEMPTS=3
+SONOFF_RETRY_DELAY=1.0
+
+# Stage ESP32 LED Controller
+STAGE_BASE_URL=http://192.168.1.100
+STAGE_TIMEOUT=5.0
+STAGE_RETRY_ATTEMPTS=2
+STAGE_RETRY_DELAY=1.0
+STAGE_DEVICE_NAME=stage-esp32
+STAGE_MAX_BRIGHTNESS=255
+STAGE_HEALTH_CHECK_INTERVAL=30
+STAGE_HEALTH_CHECK_TIMEOUT=3.0
 ```
 
 ### Network Configuration
@@ -350,77 +397,3 @@ curl http://localhost:8000/system/clients
    ```bash
    make install
    ```
-
-2. **Configure environment**:
-   ```bash
-   cp env.example .env
-   # Edit .env for production settings
-   ```
-
-3. **Run server**:
-   ```bash
-   make run
-   ```
-
-### Systemd Service
-
-Create `/etc/systemd/system/sonoff-server.service`:
-
-```ini
-[Unit]
-Description=Sonoff WiFi Socket Server
-After=network.target
-
-[Service]
-Type=simple
-User=pi
-WorkingDirectory=/path/to/raspberry
-Environment=PATH=/path/to/venv/bin
-ExecStart=/path/to/venv/bin/python main.py
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start service:
-
-```bash
-sudo systemctl enable sonoff-server
-sudo systemctl start sonoff-server
-sudo systemctl status sonoff-server
-```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Run tests and linting
-6. Submit a pull request
-
-## 📝 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-- **Midburn Team** for the project requirements
-- **Sonoff** for the WiFi socket hardware
-- **FastAPI** for the excellent web framework
-- **Pydantic** for data validation and settings management
-
-## 📞 Support
-
-For issues and questions:
-
-1. Check the troubleshooting section above
-2. Review the logs for error messages
-3. Open an issue on the project repository
-4. Contact the development team
-
----
-
-**Happy controlling! 🎉**
