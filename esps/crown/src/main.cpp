@@ -1,8 +1,10 @@
 /**
- * Stage ESP32 - LED Lighting Controller
+ * Crown ESP32 - LED Lighting Controller
  * 
- * Controls 1 LED strip with different lighting plans triggered via HTTP endpoints.
- * Designed for Midburn art installation with local network control.
+ * Controls 1 LED strip with different lighting plans:
+ * - Idle: Soft yellow pulsating halo mode
+ * - Button: Crazy colors party mode (triggered via HTTP)
+ * - WiFi Fallback: Halo + running colorful pixels
  * 
  * Includes OTA (Over-The-Air) update capability
  */
@@ -32,6 +34,7 @@ LEDPlans ledController;
 // Status variables
 LightingPlan currentPlan = PLAN_IDLE;
 bool wifiConnected = false;
+unsigned long lastWiFiCheck = 0;
 unsigned long lastStatusUpdate = 0;
 
 // OTA variables
@@ -43,10 +46,9 @@ int otaProgress = 0;
 void setupWiFi();
 void setupServer();
 void setupOTA();
+void checkWiFiConnection();
 void handleIdle();
-void handleSkip();
-void handleShow();
-void handleSpecial();
+void handleButton();
 void handleStatus();
 void handleHealth();
 void handleVersion();
@@ -56,11 +58,13 @@ void handleNotFound();
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("\n=== Stage ESP32 Starting ===");
+    Serial.println("\n=== Crown ESP32 Starting ===");
     Serial.printf("Firmware Version: %s\n", FIRMWARE_VERSION);
     
+
+    
     // Initialize LED strip
-    FastLED.addLeds<WS2812B, LED_STRIP_PIN, GRB>(leds, NUM_LEDS);
+    FastLED.addLeds<WS2811, LED_STRIP_PIN, RBG>(leds, NUM_LEDS);
     
     FastLED.setBrightness(BRIGHTNESS);
     FastLED.clear();
@@ -78,7 +82,16 @@ void setup() {
     // Setup HTTP server
     setupServer();
     
-    Serial.println("Stage ESP32 initialization complete!");
+    // Set initial plan based on WiFi status
+    if (wifiConnected) {
+        currentPlan = PLAN_IDLE;
+        ledController.setPlan(PLAN_IDLE);
+    } else {
+        currentPlan = PLAN_WIFI_FALLBACK;
+        ledController.setPlan(PLAN_WIFI_FALLBACK);
+    }
+    
+    Serial.println("Crown ESP32 initialization complete!");
 }
 
 void loop() {
@@ -87,6 +100,12 @@ void loop() {
     
     // Handle HTTP requests
     server.handleClient();
+    
+    // Check WiFi connection periodically
+    if (millis() - lastWiFiCheck > 10000) {  // Check every 10 seconds
+        checkWiFiConnection();
+        lastWiFiCheck = millis();
+    }
     
     // Update LED patterns
     ledController.update();
@@ -97,11 +116,10 @@ void loop() {
     // Status updates
     if (millis() - lastStatusUpdate > 5000) {
         lastStatusUpdate = millis();
-        if (wifiConnected) {
-            Serial.printf("Status: Plan %d, WiFi: %s, RSSI: %d, OTA: %s\n", 
-                currentPlan, WiFi.localIP().toString().c_str(), WiFi.RSSI(),
-                otaInProgress ? "In Progress" : "Idle");
-        }
+        Serial.printf("Status: Plan %d, WiFi: %s, OTA: %s\n", 
+            currentPlan, 
+            wifiConnected ? "Connected" : "Disconnected",
+            otaInProgress ? "In Progress" : "Idle");
     }
     
     // Small delay for stability
@@ -134,7 +152,7 @@ void setupWiFi() {
 
 void setupOTA() {
     // Configure OTA
-    ArduinoOTA.setHostname("stage-esp32");
+    ArduinoOTA.setHostname("crown-esp32");
     ArduinoOTA.setPassword("flamingods2024");
     
     // OTA callbacks
@@ -144,9 +162,9 @@ void setupOTA() {
         otaProgress = 0;
         Serial.println("OTA Update Started");
         
-        // Switch to idle mode during OTA
-        currentPlan = PLAN_IDLE;
-        ledController.setPlan(PLAN_IDLE);
+        // Switch to WiFi fallback mode during OTA
+        currentPlan = PLAN_WIFI_FALLBACK;
+        ledController.setPlan(PLAN_WIFI_FALLBACK);
     });
     
     ArduinoOTA.onEnd([]() {
@@ -172,8 +190,10 @@ void setupOTA() {
         else if (error == OTA_END_ERROR) Serial.println("End Failed");
         
         // Return to previous plan
-        currentPlan = PLAN_IDLE;
-        ledController.setPlan(PLAN_IDLE);
+        if (wifiConnected) {
+            currentPlan = PLAN_IDLE;
+            ledController.setPlan(PLAN_IDLE);
+        }
     });
     
     ArduinoOTA.begin();
@@ -183,9 +203,7 @@ void setupOTA() {
 void setupServer() {
     // HTTP endpoints
     server.on("/idle", HTTP_POST, handleIdle);
-    server.on("/skip", HTTP_POST, handleSkip);
-    server.on("/show", HTTP_POST, handleShow);
-    server.on("/special", HTTP_POST, handleSpecial);
+    server.on("/button", HTTP_POST, handleButton);
     server.on("/status", HTTP_GET, handleStatus);
     server.on("/health", HTTP_GET, handleHealth);
     server.on("/version", HTTP_GET, handleVersion);
@@ -200,6 +218,39 @@ void setupServer() {
     Serial.println("HTTP server started");
 }
 
+void checkWiFiConnection() {
+    if (WiFi.status() == WL_CONNECTED) {
+        if (!wifiConnected) {
+            // WiFi just reconnected
+            wifiConnected = true;
+            Serial.println("WiFi reconnected!");
+            
+            // Switch to idle mode if not in button mode and OTA not in progress
+            if (currentPlan != PLAN_BUTTON && !otaInProgress) {
+                currentPlan = PLAN_IDLE;
+                ledController.setPlan(PLAN_IDLE);
+                Serial.println("Switched to IDLE mode");
+            }
+        }
+    } else {
+        if (wifiConnected) {
+            // WiFi just disconnected
+            wifiConnected = false;
+            Serial.println("WiFi disconnected!");
+            
+            // Switch to WiFi fallback mode if not in button mode and OTA not in progress
+            if (currentPlan != PLAN_BUTTON && !otaInProgress) {
+                currentPlan = PLAN_WIFI_FALLBACK;
+                ledController.setPlan(PLAN_WIFI_FALLBACK);
+                Serial.println("Switched to WiFi FALLBACK mode");
+            }
+        }
+        
+        // Try to reconnect
+        WiFi.reconnect();
+    }
+}
+
 void handleIdle() {
     Serial.println("POST /idle - Switching to IDLE plan");
     currentPlan = PLAN_IDLE;
@@ -208,28 +259,12 @@ void handleIdle() {
     server.send(200, "application/json", "{\"status\":\"success\",\"plan\":\"idle\"}");
 }
 
-void handleSkip() {
-    Serial.println("POST /skip - Switching to SKIP plan");
-    currentPlan = PLAN_SKIP;
-    ledController.setPlan(PLAN_SKIP);
+void handleButton() {
+    Serial.println("POST /button - Switching to BUTTON plan");
+    currentPlan = PLAN_BUTTON;
+    ledController.setPlan(PLAN_BUTTON);
     
-    server.send(200, "application/json", "{\"status\":\"success\",\"plan\":\"skip\"}");
-}
-
-void handleShow() {
-    Serial.println("POST /show - Switching to SHOW plan");
-    currentPlan = PLAN_SHOW;
-    ledController.setPlan(PLAN_SHOW);
-    
-    server.send(200, "application/json", "{\"status\":\"success\",\"plan\":\"show\"}");
-}
-
-void handleSpecial() {
-    Serial.println("POST /special - Switching to SPECIAL plan");
-    currentPlan = PLAN_SPECIAL;
-    ledController.setPlan(PLAN_SPECIAL);
-    
-    server.send(200, "application/json", "{\"status\":\"success\",\"plan\":\"special\"}");
+    server.send(200, "application/json", "{\"status\":\"success\",\"plan\":\"button\"}");
 }
 
 void handleStatus() {
@@ -241,7 +276,7 @@ void handleStatus() {
     doc["rssi"] = WiFi.RSSI();
     doc["uptime"] = millis() / 1000;
     doc["firmware_version"] = FIRMWARE_VERSION;
-    doc["device"] = "stage-esp32";
+    doc["device"] = "crown-esp32";
     doc["ota_in_progress"] = otaInProgress;
     doc["ota_progress"] = otaProgress;
     
@@ -259,7 +294,7 @@ void handleVersion() {
     StaticJsonDocument<100> doc;
     doc["status"] = "success";
     doc["firmware_version"] = FIRMWARE_VERSION;
-    doc["device"] = "stage-esp32";
+    doc["device"] = "crown-esp32";
     
     String response;
     serializeJson(doc, response);

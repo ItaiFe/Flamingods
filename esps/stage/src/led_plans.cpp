@@ -100,12 +100,13 @@ void LEDPlans::updateIdle() {
     }
 }
 
-// SKIP PLAN: White flashes
+// SKIP PLAN: White flashes (4 times) then move to show
 void LEDPlans::updateSkip() {
     unsigned long elapsed = millis() - skipStartTime;
     
+    // Flash pattern: 4 white flashes with quick fades
     if (elapsed < 150) {
-        // Bright white flash
+        // First white flash
         setAllLeds(CRGB::White);
     } else if (elapsed < 300) {
         // Quick fade to black
@@ -114,12 +115,24 @@ void LEDPlans::updateSkip() {
         // Second white flash
         setAllLeds(CRGB::White);
     } else if (elapsed < 600) {
-        // Fade to black
+        // Quick fade to black
+        setAllLeds(CRGB::Black);
+    } else if (elapsed < 750) {
+        // Third white flash
+        setAllLeds(CRGB::White);
+    } else if (elapsed < 900) {
+        // Quick fade to black
+        setAllLeds(CRGB::Black);
+    } else if (elapsed < 1050) {
+        // Fourth white flash
+        setAllLeds(CRGB::White);
+    } else if (elapsed < 1200) {
+        // Final fade to black
         setAllLeds(CRGB::Black);
     } else {
-        // Return to idle
-        currentPlan = PLAN_IDLE;
-        setPlan(PLAN_IDLE);
+        // Move to show mode instead of returning to idle
+        currentPlan = PLAN_SHOW;
+        setPlan(PLAN_SHOW);
     }
 }
 

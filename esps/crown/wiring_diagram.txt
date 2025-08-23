@@ -1,0 +1,98 @@
+STAGE ESP32 WIRING DIAGRAM
+==========================
+
+ESP32 Development Board Connections
+==================================
+
+Power Supply:
+- VIN (or 5V) -> 5V Power Supply (for LED strip)
+- GND -> Common Ground (connect to power supply ground)
+
+LED Strip Connection:
+=====================
+
+Single LED Strip (WS2812B):
+- Data Pin -> GPIO 4
+- VCC -> 5V Power Supply
+- GND -> Common Ground
+
+USB Programming:
+- USB-C Cable -> Computer for programming and debugging
+
+IMPORTANT NOTES:
+================
+
+1. POWER REQUIREMENTS:
+   - Each WS2812B LED can draw up to 60mA at full brightness
+   - 1 strip × 100 LEDs × 60mA = up to 6A total current
+   - Use a 5V power supply rated for at least 8A
+   - Do NOT power LEDs from ESP32's 5V pin (insufficient current)
+
+2. GROUND CONNECTION:
+   - All grounds must be connected together
+   - ESP32 ground must connect to power supply ground
+   - LED strip ground must connect to power supply ground
+
+3. DATA SIGNAL:
+   - Single data line to GPIO 4
+   - Data line is 3.3V logic level (ESP32 compatible)
+   - Keep data line as short as possible
+   - Avoid interference from power lines
+
+4. POWER DISTRIBUTION:
+   - Use thick wires for power distribution
+   - Consider using a power distribution board
+   - Add capacitors (1000µF) near LED strip for stability
+
+RECOMMENDED COMPONENTS:
+========================
+
+Power Supply:
+- 5V, 8A switching power supply
+- Power distribution board
+- Fuse protection (8A)
+
+Wiring:
+- 22 AWG or thicker for power lines
+- 24 AWG for data line
+- Heat shrink tubing for connections
+- Cable ties for organization
+
+Safety:
+- Power supply with overcurrent protection
+- Proper grounding
+- Ventilation for power supply
+- Fuse protection for LED strip
+
+TROUBLESHOOTING:
+=================
+
+1. LEDs not lighting:
+   - Check power supply voltage (should be 5V)
+   - Verify ground connections
+   - Check data pin connection to GPIO 4
+   - Ensure power supply can handle current load
+
+2. Erratic LED behavior:
+   - Check for loose connections
+   - Verify power supply stability
+   - Check for interference on data line
+   - Ensure proper grounding
+
+3. ESP32 not responding:
+   - Check USB connection
+   - Verify power to ESP32
+   - Check serial monitor for error messages
+   - Verify WiFi credentials
+
+4. WiFi connection issues:
+   - Check network availability
+   - Verify SSID and password
+   - Check signal strength
+   - Ensure network allows ESP32 connections
+
+5. LED patterns not working:
+   - Verify single LED strip connection
+   - Check GPIO 4 connection
+   - Ensure proper power supply capacity
+   - Check for loose connections

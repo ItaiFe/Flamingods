@@ -1,5 +1,5 @@
 /**
- * Stage ESP32 - LED Lighting Controller
+ * Button ESP32 - LED Lighting Controller
  * 
  * Controls 1 LED strip with different lighting plans triggered via HTTP endpoints.
  * Designed for Midburn art installation with local network control.
@@ -56,7 +56,7 @@ void handleNotFound();
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("\n=== Stage ESP32 Starting ===");
+    Serial.println("\n=== Button ESP32 Starting ===");
     Serial.printf("Firmware Version: %s\n", FIRMWARE_VERSION);
     
     // Initialize LED strip
@@ -78,7 +78,7 @@ void setup() {
     // Setup HTTP server
     setupServer();
     
-    Serial.println("Stage ESP32 initialization complete!");
+    Serial.println("Button ESP32 initialization complete!");
 }
 
 void loop() {
@@ -134,7 +134,7 @@ void setupWiFi() {
 
 void setupOTA() {
     // Configure OTA
-    ArduinoOTA.setHostname("stage-esp32");
+    ArduinoOTA.setHostname("button-esp32");
     ArduinoOTA.setPassword("flamingods2024");
     
     // OTA callbacks
@@ -241,7 +241,7 @@ void handleStatus() {
     doc["rssi"] = WiFi.RSSI();
     doc["uptime"] = millis() / 1000;
     doc["firmware_version"] = FIRMWARE_VERSION;
-    doc["device"] = "stage-esp32";
+    doc["device"] = "button-esp32";
     doc["ota_in_progress"] = otaInProgress;
     doc["ota_progress"] = otaProgress;
     
@@ -259,7 +259,7 @@ void handleVersion() {
     StaticJsonDocument<100> doc;
     doc["status"] = "success";
     doc["firmware_version"] = FIRMWARE_VERSION;
-    doc["device"] = "stage-esp32";
+    doc["device"] = "button-esp32";
     
     String response;
     serializeJson(doc, response);
