@@ -162,6 +162,15 @@ class SonoffDeviceManager:
         """Scan network for Sonoff devices using multi-process and async optimization"""
         discovered_devices = []
         
+        # Check if we should scan specific IPs only
+        if (self.config.network.use_specific_ips_only and 
+            self.config.network.specific_device_ips):
+            logger.info(f"Scanning specific IPs: {self.config.network.specific_device_ips}")
+            return await self._scan_specific_ips()
+        
+        # Fall back to full network scan
+        logger.info("Performing full network scan")
+        
         # Parse network range
         network_parts = self.config.network.local_network.split('.')
         base_ip = f"{network_parts[0]}.{network_parts[1]}.{network_parts[2]}"
@@ -361,6 +370,31 @@ class SonoffDeviceManager:
         except asyncio.TimeoutError:
             logger.warning("Async fallback discovery timed out after 20 seconds")
         
+        return discovered_devices
+    
+    async def _scan_specific_ips(self) -> List[Dict]:
+        """Scan only specific IP addresses for Sonoff devices"""
+        discovered_devices = []
+        
+        logger.info(f"Starting specific IP scan for: {self.config.network.specific_device_ips}")
+        
+        # Create scan tasks for specific IPs
+        scan_tasks = []
+        for ip in self.config.network.specific_device_ips:
+            task = asyncio.create_task(self._scan_ip_for_sonoff_device(ip))
+            scan_tasks.append(task)
+        
+        # Execute scans concurrently
+        results = await asyncio.gather(*scan_tasks, return_exceptions=True)
+        
+        # Collect successful results
+        for result in results:
+            if isinstance(result, dict) and result:
+                discovered_devices.append(result)
+            elif isinstance(result, Exception):
+                logger.warning(f"Error scanning specific IP: {result}")
+        
+        logger.info(f"Specific IP scan completed: {len(discovered_devices)} devices found")
         return discovered_devices
     
     async def _scan_ip_for_sonoff_device(self, ip: str) -> Optional[Dict]:

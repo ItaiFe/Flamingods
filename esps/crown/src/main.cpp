@@ -54,6 +54,8 @@ void handleHealth();
 void handleVersion();
 void handleOTA();
 void handleOTAStatus();
+void handleStationColor();
+void handleStationMixedColor();
 void handleNotFound();
 
 void setup() {
@@ -210,6 +212,10 @@ void setupServer() {
     server.on("/ota", HTTP_POST, handleOTA);
     server.on("/ota-status", HTTP_GET, handleOTAStatus);
     
+    // Station endpoints
+    server.on("/station-color", HTTP_POST, handleStationColor);
+    server.on("/station-mixed-color", HTTP_POST, handleStationMixedColor);
+    
     // 404 handler
     server.onNotFound(handleNotFound);
     
@@ -324,6 +330,125 @@ void handleOTAStatus() {
     
     String response;
     serializeJson(doc, response);
+    
+    server.send(200, "application/json", response);
+}
+
+void handleStationColor() {
+    Serial.println("POST /station-color - Station color request received");
+    
+    // Parse JSON from request body
+    String body = server.arg("plain");
+    StaticJsonDocument<300> doc;
+    DeserializationError error = deserializeJson(doc, body);
+    
+    if (error) {
+        Serial.printf("JSON parsing failed: %s\n", error.c_str());
+        server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
+        return;
+    }
+    
+    // Extract station information
+    int stationId = doc["station_id"] | 0;
+    const char* stationName = doc["station_name"] | "unknown";
+    const char* color = doc["color"] | "unknown";
+    unsigned long timestamp = doc["timestamp"] | 0;
+    
+    Serial.printf("Station %d (%s) requested color: %s\n", stationId, stationName, color);
+    
+    // Handle the color request based on the color
+    if (strcmp(color, "red") == 0) {
+        // Set LED pattern for red
+        currentPlan = PLAN_BUTTON;
+        ledController.setPlan(PLAN_BUTTON);
+        Serial.println("Switched to BUTTON plan for red color");
+    } else if (strcmp(color, "green") == 0) {
+        // Set LED pattern for green
+        currentPlan = PLAN_IDLE;
+        ledController.setPlan(PLAN_IDLE);
+        Serial.println("Switched to IDLE plan for green color");
+    } else if (strcmp(color, "blue") == 0) {
+        // Set LED pattern for blue
+        currentPlan = PLAN_WIFI_FALLBACK;
+        ledController.setPlan(PLAN_WIFI_FALLBACK);
+        Serial.println("Switched to WiFi FALLBACK plan for blue color");
+    } else if (strcmp(color, "yellow") == 0) {
+        // Set LED pattern for yellow
+        currentPlan = PLAN_BUTTON;
+        ledController.setPlan(PLAN_BUTTON);
+        Serial.println("Switched to BUTTON plan for yellow color");
+    } else if (strcmp(color, "white") == 0) {
+        // Set LED pattern for white
+        currentPlan = PLAN_IDLE;
+        ledController.setPlan(PLAN_IDLE);
+        Serial.println("Switched to IDLE plan for white color");
+    }
+    
+    // Send response
+    StaticJsonDocument<200> responseDoc;
+    responseDoc["status"] = "success";
+    responseDoc["station_id"] = stationId;
+    responseDoc["station_name"] = stationName;
+    responseDoc["color"] = color;
+    responseDoc["action_taken"] = "led_pattern_changed";
+    
+    String response;
+    serializeJson(responseDoc, response);
+    
+    server.send(200, "application/json", response);
+}
+
+void handleStationMixedColor() {
+    Serial.println("POST /station-mixed-color - Station mixed color request received");
+    
+    // Parse JSON from request body
+    String body = server.arg("plain");
+    StaticJsonDocument<400> doc;
+    DeserializationError error = deserializeJson(doc, body);
+    
+    if (error) {
+        Serial.printf("JSON parsing failed: %s\n", error.c_str());
+        server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
+        return;
+    }
+    
+    // Extract station information
+    int stationId = doc["station_id"] | 0;
+    const char* stationName = doc["station_name"] | "unknown";
+    unsigned long timestamp = doc["timestamp"] | 0;
+    
+    Serial.printf("Station %d (%s) requested mixed colors\n", stationId, stationName);
+    
+    // Get the colors array
+    JsonArray colors = doc["colors"];
+    if (!colors) {
+        Serial.println("No colors array found in request");
+        server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"No colors array\"}");
+        return;
+    }
+    
+    // Print all requested colors
+    Serial.print("Colors requested: ");
+    for (JsonVariant color : colors) {
+        Serial.printf("%s ", color.as<const char*>());
+    }
+    Serial.println();
+    
+    // Handle mixed color request - set to party mode
+    currentPlan = PLAN_BUTTON;
+    ledController.setPlan(PLAN_BUTTON);
+    Serial.println("Switched to BUTTON plan for mixed colors (party mode)");
+    
+    // Send response
+    StaticJsonDocument<300> responseDoc;
+    responseDoc["status"] = "success";
+    responseDoc["station_id"] = stationId;
+    responseDoc["station_name"] = stationName;
+    responseDoc["action_taken"] = "party_mode_activated";
+    responseDoc["colors_count"] = colors.size();
+    
+    String response;
+    serializeJson(responseDoc, response);
     
     server.send(200, "application/json", response);
 }

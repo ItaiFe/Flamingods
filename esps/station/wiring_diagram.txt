@@ -1,0 +1,122 @@
+STATION ESP32 WIRING DIAGRAM
+============================
+
+ESP32 Development Board Connections
+==================================
+
+Power Supply:
+- VIN (or 5V) -> 5V Power Supply
+- GND -> Common Ground
+
+Button Connections:
+==================
+
+5 Physical Buttons (Red, Green, Blue, Yellow, White):
+
+1. RED Button:
+   - One terminal -> GPIO 2
+   - Other terminal -> GND
+   - Internal pull-up resistor enabled
+
+2. GREEN Button:
+   - One terminal -> GPIO 4
+   - Other terminal -> GND
+   - Internal pull-up resistor enabled
+
+3. BLUE Button:
+   - One terminal -> GPIO 5
+   - Other terminal -> GND
+   - Internal pull-up resistor enabled
+
+4. YELLOW Button:
+   - One terminal -> GPIO 18
+   - Other terminal -> GND
+   - Internal pull-up resistor enabled
+
+5. WHITE Button:
+   - One terminal -> GPIO 19
+   - Other terminal -> GND
+   - Internal pull-up resistor enabled
+
+USB Programming:
+- USB-C Cable -> Computer for programming and debugging
+
+IMPORTANT NOTES:
+================
+
+1. BUTTON CONFIGURATION:
+   - All buttons use internal pull-up resistors (INPUT_PULLUP)
+   - Button press = LOW signal (GND connection)
+   - Button release = HIGH signal (pull-up resistor)
+   - 50ms debounce time to prevent false triggers
+
+2. GPIO PIN ASSIGNMENTS:
+   - GPIO 2: Red Button
+   - GPIO 4: Green Button
+   - GPIO 5: Blue Button
+   - GPIO 18: Yellow Button
+   - GPIO 19: White Button
+
+3. BUTTON TYPES:
+   - Momentary push buttons (normally open)
+   - Any 5V or 3.3V compatible button
+   - Can use breadboard-friendly buttons
+   - Consider using tactile switches for testing
+
+4. WIRING TIPS:
+   - Keep button wires short
+   - Use solid core wire for breadboard
+   - Ensure good GND connections
+   - Test each button individually
+
+5. FUNCTIONALITY:
+   - Single button press: Sends single color to flamingo server
+   - Multiple button press: Sends mixed color array to flamingo server
+   - HTTP POST to /station-color or /station-mixed-color endpoints
+   - JSON payload includes station ID, action, colors, and timestamp
+
+RECOMMENDED COMPONENTS:
+========================
+
+Buttons:
+- 5x Tactile push buttons (6x6mm or larger)
+- Momentary action, normally open
+- 5V or 3.3V compatible
+
+Wiring:
+- 22 AWG solid core wire
+- Breadboard for testing
+- Jumper wires for connections
+- Heat shrink tubing (optional)
+
+Safety:
+- Proper grounding
+- Check button ratings
+- Test connections before powering
+
+TROUBLESHOOTING:
+=================
+
+1. Button not responding:
+   - Check GPIO pin connection
+   - Verify GND connection
+   - Check for loose wires
+   - Monitor serial output for button events
+
+2. Multiple button triggers:
+   - Check debounce timing
+   - Verify button quality
+   - Check for electrical noise
+   - Ensure proper pull-up resistors
+
+3. HTTP communication issues:
+   - Check WiFi connection
+   - Verify flamingo server IP
+   - Monitor serial output for HTTP responses
+   - Check network connectivity
+
+4. ESP32 not responding:
+   - Check USB connection
+   - Verify power supply
+   - Check serial monitor for error messages
+   - Verify WiFi credentials
