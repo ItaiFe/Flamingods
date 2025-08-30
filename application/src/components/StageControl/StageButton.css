@@ -1,0 +1,201 @@
+.stage-button {
+  position: relative;
+  background-color: var(--bg-primary);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  text-align: center;
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+  overflow: hidden;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  transform: scale(1);
+}
+
+.stage-button:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--stage-color);
+}
+
+.stage-button:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+  transition: all 0.1s ease-in-out;
+}
+
+.stage-button.active {
+  border-color: var(--stage-color);
+  background-color: color-mix(in srgb, var(--stage-color) 5%, var(--bg-primary));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--stage-color) 20%, transparent);
+  transform: scale(1.02);
+  transition: all 0.3s ease-in-out;
+}
+
+.stage-button.loading {
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.button-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.stage-icon {
+  font-size: 3rem;
+  margin-bottom: var(--spacing-sm);
+}
+
+.stage-label {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.stage-description {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  z-index: 3;
+  border-radius: var(--radius-lg);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.loading-overlay span {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.active-indicator {
+  position: absolute;
+  top: var(--spacing-md);
+  right: var(--spacing-md);
+  background-color: var(--success-color);
+  color: white;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  z-index: 3;
+  animation: slideInRight 0.3s ease-out;
+}
+
+.transitioning-indicator {
+  position: absolute;
+  top: var(--spacing-md);
+  right: var(--spacing-md);
+  background-color: var(--warning-color);
+  color: white;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  z-index: 3;
+  animation: pulse 0.8s ease-in-out infinite, slideInRight 0.15s ease-out;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInRight {
+  0% {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Stage-specific colors */
+.stage-button.idle {
+  --stage-color: #6b7280;
+}
+
+.stage-button.skip {
+  --stage-color: #f59e0b;
+}
+
+.stage-button.show {
+  --stage-color: #3b82f6;
+}
+
+.stage-button.special {
+  --stage-color: #8b5cf6;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .stage-button {
+    min-height: 160px;
+    padding: var(--spacing-lg);
+  }
+  
+  .stage-icon {
+    font-size: 2.5rem;
+  }
+  
+  .stage-label {
+    font-size: 1.25rem;
+  }
+  
+  .active-indicator {
+    top: var(--spacing-sm);
+    right: var(--spacing-sm);
+    font-size: 0.7rem;
+    padding: var(--spacing-xs);
+  }
+  
+  .transitioning-indicator {
+    top: var(--spacing-sm);
+    right: var(--spacing-sm);
+    font-size: 0.7rem;
+    padding: var(--spacing-xs);
+  }
+}

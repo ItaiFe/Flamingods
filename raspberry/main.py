@@ -11,21 +11,23 @@ This is the main entry point for the FastAPI server that provides:
 
 import asyncio
 import json
+import logging
 import time
 from contextlib import asynccontextmanager
-from typing import List, Optional
+from datetime import datetime, timezone
+from typing import List, Optional, Dict, Any
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends
-from fastapi.middleware.cors import CORSMiddleware
+import httpx
+from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
-import structlog
+from fastapi.middleware.cors import CORSMiddleware
 
 from config import get_config
 from models import (
-    DeviceInfo, DeviceControl, DeviceResponse, DeviceDiscoveryRequest,
-    DeviceDiscoveryResponse, HealthCheck, ErrorResponse, BulkDeviceControl,
-    BulkDeviceResponse, PowerState, WebSocketEvent, StageControl, StageResponse,
-    StageStatus, StageLightingPlan, StagePlanInfo, BulkStageControl, BulkStageResponse
+    DeviceInfo, DeviceControl, DeviceResponse, PowerState,
+    StageControl, StageResponse, ErrorResponse, WebSocketEvent,
+    HealthCheck, DeviceDiscoveryRequest, DeviceDiscoveryResponse,
+    BulkDeviceResponse, BulkDeviceControl
 )
 from sonoff_manager import device_manager
 from websocket_manager import websocket_manager
@@ -33,7 +35,36 @@ from audio_manager import AudioManager
 from audio_endpoints import router as audio_router, set_audio_manager
 
 # Configure logging
-logger = structlog.get_logger()
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)-8s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
+
+# Global instances
+device_manager = SonoffDeviceManager()
+websocket_manager = WebSocketManager()
+
+# Helper function to safely serialize error details
+def safe_error_detail(error) -> str:
+    """Convert any error object to a safe string representation"""
+    try:
+        if error is None:
+            return "Unknown error"
+        elif isinstance(error, str):
+            return error
+        elif isinstance(error, Exception):
+            # Get the error message, avoiding any datetime objects
+            error_msg = str(error)
+            # Remove any datetime-like patterns that might cause issues
+            if "datetime" in error_msg.lower():
+                return f"Error: {type(error).__name__}"
+            return error_msg
+        else:
+            return str(error)
+    except Exception:
+        return "Error serialization failed"
 
 # Server startup time
 startup_time = time.time()
@@ -155,10 +186,17 @@ async def discover_devices(
             logger.info("Starting device manager for discovery")
             await device_mgr.start()
         
-        # Perform device discovery
-        discovered_devices = await device_mgr.discover_devices(
-            force_refresh=request.force_refresh
-        )
+        # Perform device discovery with timeout
+        try:
+            discovered_devices = await asyncio.wait_for(
+                device_mgr.discover_devices(force_refresh=request.force_refresh),
+                timeout=90.0  # 90 second timeout for the entire discovery process
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Device discovery timed out after 90 seconds, returning partial results")
+            # Return any devices that were found before timeout
+            discovered_devices = [device_mgr._convert_to_device_info(device) 
+                                for device in device_mgr.devices.values()]
         
         # Broadcast discovery results
         await websocket_manager.broadcast_device_discovery(discovered_devices)
@@ -173,7 +211,7 @@ async def discover_devices(
         
     except Exception as e:
         logger.error(f"Device discovery failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
 
 
 @app.get("/devices", response_model=List[DeviceInfo])
@@ -191,7 +229,7 @@ async def get_devices(device_mgr=Depends(get_device_manager)):
         
     except Exception as e:
         logger.error(f"Failed to get devices: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
 
 
 @app.get("/devices/{device_id}", response_model=DeviceInfo)
@@ -208,7 +246,7 @@ async def get_device(device_id: str, device_mgr=Depends(get_device_manager)):
         raise
     except Exception as e:
         logger.error(f"Failed to get device {device_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
 
 
 # Device control endpoints
@@ -239,10 +277,10 @@ async def control_device(
         return response
         
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=safe_error_detail(e))
     except Exception as e:
         logger.error(f"Failed to control device {device_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
 
 
 @app.post("/devices/{device_id}/power/{power_state}")
@@ -270,10 +308,10 @@ async def set_power(
         return response
         
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=safe_error_detail(e))
     except Exception as e:
         logger.error(f"Failed to set power for device {device_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
 
 
 @app.post("/devices/{device_id}/toggle")
@@ -300,10 +338,10 @@ async def toggle_device(
         return response
         
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=safe_error_detail(e))
     except Exception as e:
         logger.error(f"Failed to toggle device {device_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
 
 
 # Bulk control endpoints
@@ -382,12 +420,10 @@ async def bulk_control_devices(
         
     except Exception as e:
         logger.error(f"Bulk control failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
 
 
 # Stage LED control endpoints
-import httpx
-
 # Stage server configuration
 STAGE_SERVER_BASE_URL = config.stage.base_url
 STAGE_SERVER_TIMEOUT = config.stage.timeout
@@ -410,7 +446,7 @@ async def stage_idle():
         raise HTTPException(status_code=503, detail="Cannot connect to stage server")
     except Exception as e:
         logger.error(f"Failed to control stage IDLE: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
 
 
 @app.post("/stage/skip")
@@ -431,7 +467,7 @@ async def stage_skip():
         raise HTTPException(status_code=503, detail="Cannot connect to stage server")
     except Exception as e:
         logger.error(f"Failed to control stage SKIP: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
 
 
 @app.post("/stage/show")
@@ -452,7 +488,7 @@ async def stage_show():
         raise HTTPException(status_code=503, detail="Cannot connect to stage server")
     except Exception as e:
         logger.error(f"Failed to control stage SHOW: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
 
 
 @app.post("/stage/special")
@@ -473,7 +509,7 @@ async def stage_special():
         raise HTTPException(status_code=503, detail="Cannot connect to stage server")
     except Exception as e:
         logger.error(f"Failed to control stage SPECIAL: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
 
 
 @app.get("/stage/status")
@@ -486,7 +522,9 @@ async def stage_status():
         if response.status_code == 200:
             return response.json()
         else:
-            raise HTTPException(status_code=response.status_code, detail=f"Stage server error: {response.text}")
+            # Ensure error detail is serializable
+            error_detail = str(response.text) if response.text else "Unknown stage server error"
+            raise HTTPException(status_code=response.status_code, detail=error_detail)
             
     except httpx.TimeoutException:
         raise HTTPException(status_code=408, detail="Stage server timeout")
@@ -494,7 +532,9 @@ async def stage_status():
         raise HTTPException(status_code=503, detail="Cannot connect to stage server")
     except Exception as e:
         logger.error(f"Failed to get stage status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Ensure error detail is serializable
+        error_detail = str(e) if e else "Unknown error"
+        raise HTTPException(status_code=500, detail=error_detail)
 
 
 @app.get("/stage/health")
@@ -507,7 +547,9 @@ async def stage_health():
         if response.status_code == 200:
             return {"status": "healthy", "stage_server": "OK"}
         else:
-            raise HTTPException(status_code=response.status_code, detail=f"Stage server error: {response.text}")
+            # Ensure error detail is serializable
+            error_detail = str(response.text) if response.text else "Unknown stage server error"
+            raise HTTPException(status_code=response.status_code, detail=error_detail)
             
     except httpx.TimeoutException:
         raise HTTPException(status_code=408, detail="Stage server timeout")
@@ -515,7 +557,9 @@ async def stage_health():
         raise HTTPException(status_code=503, detail="Cannot connect to stage server")
     except Exception as e:
         logger.error(f"Failed to get stage health: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Ensure error detail is serializable
+        error_detail = str(e) if e else "Unknown error"
+        raise HTTPException(status_code=500, detail=error_detail)
 
 
 # WebSocket endpoint
@@ -632,7 +676,7 @@ async def get_system_status(
         
     except Exception as e:
         logger.error(f"Failed to get system status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
 
 
 @app.get("/system/clients")
@@ -643,35 +687,59 @@ async def get_websocket_clients(ws_mgr=Depends(get_websocket_manager)):
         
     except Exception as e:
         logger.error(f"Failed to get client info: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=safe_error_detail(e))
 
 
 # Error handlers
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
     """Handle HTTP exceptions"""
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=ErrorResponse(
-            error="http_error",
-            message=exc.detail,
-            status_code=exc.status_code
-        ).dict()
-    )
+    try:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=ErrorResponse(
+                error="http_error",
+                message=safe_error_detail(exc.detail),  # Use safe error detail
+                status_code=exc.status_code
+            ).dict()
+        )
+    except Exception as e:
+        # Fallback error response if ErrorResponse fails
+        logger.error(f"Error in HTTP exception handler: {e}")
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "error": "http_error",
+                "message": safe_error_detail(exc.detail),  # Use safe error detail
+                "status_code": exc.status_code
+            }
+        )
 
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request, exc):
     """Handle general exceptions"""
     logger.error(f"Unhandled exception: {exc}")
-    return JSONResponse(
-        status_code=500,
-        content=ErrorResponse(
-            error="internal_error",
-            message="Internal server error",
-            status_code=500
-        ).dict()
-    )
+    try:
+        return JSONResponse(
+            status_code=500,
+            content=ErrorResponse(
+                error="internal_error",
+                message="Internal server error",
+                status_code=500
+            ).dict()
+        )
+    except Exception as e:
+        # Fallback error response if ErrorResponse fails
+        logger.error(f"Error in general exception handler: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "internal_error",
+                "message": "Internal server error",
+                "status_code": 500
+            }
+        )
 
 
 # Main function for running the server

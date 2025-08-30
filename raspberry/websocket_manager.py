@@ -1,22 +1,20 @@
 """
-WebSocket Manager for Sonoff WiFi Socket Server
+WebSocket Manager for Real-time Communication
 
-This module handles WebSocket connections for real-time communication:
-- Client connections and disconnections
-- Event broadcasting
-- Device status updates
-- Real-time control feedback
+This module handles WebSocket connections and real-time event broadcasting
+to connected clients.
 """
 
 import asyncio
 import json
 import time
-from datetime import datetime
-from typing import Dict, List, Set, Optional, Any
+from datetime import datetime, timezone
+from typing import Dict, List, Optional, Set, Any
 from dataclasses import dataclass
 import structlog
 
-from models import WebSocketEvent, DeviceInfo, PowerState
+from fastapi import WebSocket, WebSocketDisconnect
+from models import WebSocketEvent, DeviceControl, PowerState, DeviceInfo
 from config import get_config
 
 logger = structlog.get_logger()
@@ -25,13 +23,15 @@ logger = structlog.get_logger()
 @dataclass
 class WebSocketClient:
     """WebSocket client connection"""
-    
-    id: str
-    websocket: Any  # WebSocket connection object
+    websocket: WebSocket
+    client_id: str
     connected_at: datetime
     last_ping: datetime
-    client_info: Dict[str, Any]
-    subscriptions: Set[str]  # Event types client is subscribed to
+    subscriptions: Set[str] = None
+    
+    def __post_init__(self):
+        if self.subscriptions is None:
+            self.subscriptions = set()
 
 
 class WebSocketManager:
@@ -48,6 +48,9 @@ class WebSocketManager:
         self.total_events_sent = 0
         self.total_clients_connected = 0
         self.total_clients_disconnected = 0
+        
+        # Start time for uptime calculation
+        self._start_time = time.time()
     
     async def start(self):
         """Start the WebSocket manager"""
@@ -83,16 +86,15 @@ class WebSocketManager:
         
         logger.info("WebSocket Manager stopped")
     
-    async def add_client(self, websocket: Any, client_info: Dict[str, Any] = None) -> str:
+    async def add_client(self, websocket: WebSocket, client_info: Dict[str, Any] = None) -> str:
         """Add a new WebSocket client"""
         client_id = self._generate_client_id()
         
         client = WebSocketClient(
-            id=client_id,
             websocket=websocket,
-            connected_at=datetime.utcnow(),
-            last_ping=datetime.utcnow(),
-            client_info=client_info or {},
+            client_id=client_id,
+            connected_at=datetime.now(timezone.utc),
+            last_ping=datetime.now(timezone.utc),
             subscriptions=set()  # Subscribe to all events by default
         )
         
@@ -108,7 +110,7 @@ class WebSocketManager:
             data={
                 "client_id": client_id,
                 "message": "Welcome to Sonoff WiFi Socket Server",
-                "server_time": datetime.utcnow().isoformat(),
+                "server_time": datetime.now(timezone.utc).isoformat(),
                 "total_clients": len(self.clients)
             }
         )
@@ -164,7 +166,7 @@ class WebSocketManager:
             await client.websocket.send_text(event_json)
             
             # Update last ping time
-            client.last_ping = datetime.utcnow()
+            client.last_ping = datetime.now(timezone.utc)
             
             self.total_events_sent += 1
             
@@ -210,7 +212,7 @@ class WebSocketManager:
         
         while True:
             try:
-                current_time = datetime.utcnow()
+                current_time = datetime.now(timezone.utc)
                 clients_to_remove = []
                 
                 # Check for inactive clients
@@ -284,7 +286,7 @@ class WebSocketManager:
                 "power_state": power_state,
                 "success": success,
                 "message": message,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
         )
         
@@ -309,7 +311,7 @@ class WebSocketManager:
                     }
                     for device in discovered_devices
                 ],
-                "discovery_time": datetime.utcnow().isoformat()
+                "discovery_time": datetime.now(timezone.utc).isoformat()
             }
         )
         
@@ -322,7 +324,7 @@ class WebSocketManager:
             device_id="system",
             data={
                 **status_data,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "total_clients": len(self.clients),
                 "total_events_sent": self.total_events_sent
             }
@@ -362,10 +364,9 @@ class WebSocketManager:
         if client_id in self.clients:
             client = self.clients[client_id]
             return {
-                "id": client.id,
+                "id": client.client_id,  # Fixed: use client_id instead of id
                 "connected_at": client.connected_at.isoformat(),
                 "last_ping": client.last_ping.isoformat(),
-                "client_info": client.client_info,
                 "subscriptions": list(client.subscriptions)
             }
         return None
@@ -390,7 +391,7 @@ class WebSocketManager:
                 data={
                     "client_id": client_id,
                     "subscriptions": list(client.subscriptions),
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 }
             )
             
