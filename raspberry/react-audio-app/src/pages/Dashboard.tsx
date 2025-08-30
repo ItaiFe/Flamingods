@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useAudio } from '../contexts/AudioContext';
-import { Play, Pause, Stop, SkipBack, SkipForward, Volume2, VolumeX, RotateCcw } from 'lucide-react';
+import { Play, Pause, Stop, SkipBack, SkipForward, Volume2, VolumeX, RotateCcw, Music, Shuffle, TrendingUp, Clock, Zap } from 'lucide-react';
 import PlaybackControls from '../components/PlaybackControls';
 import LibraryStats from '../components/LibraryStats';
 import RecentTracks from '../components/RecentTracks';
@@ -8,7 +8,7 @@ import PopularTracks from '../components/PopularTracks';
 import ErrorAlert from '../components/ErrorAlert';
 
 const Dashboard: React.FC = () => {
-  const { state, loadStats, getPopularTracks, getRecentTracks, refreshLibrary } = useAudio();
+  const { state, loadStats, getPopularTracks, getRecentTracks, refreshLibrary, getRandomTrack, getTracksByCategory } = useAudio();
 
   useEffect(() => {
     // Load dashboard data
