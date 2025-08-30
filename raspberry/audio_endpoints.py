@@ -16,7 +16,7 @@ import structlog
 import os
 import shutil
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 from audio_models import (
     AudioControl, AudioResponse, PlaybackStatus, TrackInfo, 
@@ -114,7 +114,7 @@ async def upload_song(
                 logger.info(f"Added new track to library: {track_info.title}")
                 
                 # Update library statistics
-                audio_mgr.last_scan_time = datetime.utcnow()
+                audio_mgr.last_scan_time = datetime.now(timezone.utc)
                 
                 return AudioResponse(
                     success=True,
@@ -238,7 +238,7 @@ async def upload_multiple_songs(
         
         # Update library statistics
         if uploaded_files:
-            audio_mgr.last_scan_time = datetime.utcnow()
+            audio_mgr.last_scan_time = datetime.now(timezone.utc)
         
         return AudioResponse(
             success=True,

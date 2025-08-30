@@ -8,7 +8,7 @@ This module defines the data models used by the audio system including:
 - Audio control commands
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
@@ -60,9 +60,9 @@ class TrackInfo(BaseModel):
     track_number: Optional[int] = Field(default=None, description="Track number on album")
     
     # System information
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="When track was added")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When track was added")
     last_played: Optional[datetime] = Field(default=None, description="Last time track was played")
-    play_count: int = Field(default=0, description="Number of times track has been played")
+    play_count: int = Field(default=0, description="Number of times track was played")
 
 
 class PlaylistInfo(BaseModel):
@@ -83,8 +83,8 @@ class PlaylistInfo(BaseModel):
     auto_advance: bool = Field(default=True, description="Whether to auto-advance to next track")
     
     # System information
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="When playlist was created")
-    last_modified: datetime = Field(default_factory=datetime.utcnow, description="Last modification time")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When playlist was created")
+    last_modified: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Last modification time")
     last_played: Optional[datetime] = Field(default=None, description="Last time playlist was played")
 
 
@@ -110,7 +110,7 @@ class PlaybackStatus(BaseModel):
     queue_length: int = Field(default=0, description="Total tracks in current playlist")
     
     # System information
-    last_updated: datetime = Field(default_factory=datetime.utcnow, description="Last status update")
+    last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Last status update")
     error_message: Optional[str] = Field(default=None, description="Error message if any")
 
 
@@ -153,7 +153,7 @@ class AudioEvent(BaseModel):
     
     # Event information
     event_type: str = Field(description="Type of audio event")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Event timestamp")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Event timestamp")
     
     # Event data
     data: Dict[str, Any] = Field(default_factory=dict, description="Event data")

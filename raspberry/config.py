@@ -13,6 +13,7 @@ import os
 from typing import List, Optional
 from pydantic_settings import BaseSettings
 from pydantic import Field, validator
+from audio_models import AudioFormat
 
 
 class ServerConfig(BaseSettings):
@@ -112,8 +113,8 @@ class AudioConfig(BaseSettings):
     )
     
     # Supported audio formats
-    supported_formats: List[str] = Field(
-        default=["mp3", "wav", "flac", "ogg"],
+    supported_formats: List[AudioFormat] = Field(
+        default=[AudioFormat.MP3, AudioFormat.WAV, AudioFormat.FLAC, AudioFormat.OGG],
         description="Supported audio file formats"
     )
     

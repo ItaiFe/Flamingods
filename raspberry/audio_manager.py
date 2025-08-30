@@ -13,7 +13,7 @@ import os
 import time
 import hashlib
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 from concurrent.futures import ThreadPoolExecutor
@@ -168,7 +168,7 @@ class AudioManager:
                     self.errors_count += 1
             
             # Update scan statistics
-            self.last_scan_time = datetime.utcnow()
+            self.last_scan_time = datetime.now(timezone.utc)
             self.scan_duration = time.time() - start_time
             
             # Load playlists
@@ -386,7 +386,7 @@ class AudioManager:
             
             # Update track statistics
             track.play_count += 1
-            track.last_played = datetime.utcnow()
+            track.last_played = datetime.now(timezone.utc)
             
             # Notify status change
             await self._notify_status_change()
@@ -715,7 +715,7 @@ class AudioManager:
                 random.shuffle(self.track_queue)
             
             # Update playlist statistics
-            playlist.last_played = datetime.utcnow()
+            playlist.last_played = datetime.now(timezone.utc)
             
             await self._notify_status_change()
             
@@ -750,7 +750,7 @@ class AudioManager:
             muted=self.muted,
             queue_position=self.current_queue_index,
             queue_length=len(self.track_queue),
-            last_updated=datetime.utcnow(),
+            last_updated=datetime.now(timezone.utc),
             error_message=None
         )
     
