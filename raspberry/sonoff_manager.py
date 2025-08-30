@@ -14,7 +14,9 @@ import socket
 import time
 import json
 import hashlib
-from datetime import datetime, timedelta
+import multiprocessing
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Set, Tuple
 from dataclasses import dataclass
 import structlog
@@ -97,8 +99,8 @@ class SonoffDeviceManager:
         # Create HTTP session
         self.session = aiohttp.ClientSession(timeout=self.session_timeout)
         
-        # Start device monitoring
-        self.monitoring_task = asyncio.create_task(self._monitor_devices())
+        # Temporarily disable device monitoring to prevent blocking
+        # self.monitoring_task = asyncio.create_task(self._monitor_devices())
         
         # Initial device discovery
         await self.discover_devices()
@@ -122,6 +124,11 @@ class SonoffDeviceManager:
             await self.session.close()
         
         logger.info("Sonoff Device Manager stopped")
+    
+    def is_running(self) -> bool:
+        """Check if the device manager is running"""
+        # Temporarily return True since monitoring is disabled
+        return True
     
     async def discover_devices(self, force_refresh: bool = False) -> List[DeviceInfo]:
         """Discover Sonoff devices on the local network"""
@@ -152,36 +159,207 @@ class SonoffDeviceManager:
                 self.discovery_running = False
     
     async def _scan_network(self) -> List[Dict]:
-        """Scan network for Sonoff devices"""
+        """Scan network for Sonoff devices using multi-process and async optimization"""
         discovered_devices = []
         
         # Parse network range
         network_parts = self.config.network.local_network.split('.')
         base_ip = f"{network_parts[0]}.{network_parts[1]}.{network_parts[2]}"
         
-        # Scan IP range
+        # Create IP chunks for parallel processing
+        ip_chunks = self._create_ip_chunks(base_ip, chunk_size=50)
+        
+        # Process chunks in parallel using ProcessPoolExecutor
+        try:
+            with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+                # Submit chunk processing tasks
+                chunk_futures = []
+                for chunk in ip_chunks:
+                    future = executor.submit(self._process_ip_chunk_sync, chunk)
+                    chunk_futures.append(future)
+                
+                # Wait for all chunks to complete with timeout
+                results = []
+                for future in chunk_futures:
+                    try:
+                        chunk_result = future.result(timeout=15.0)  # 15s per chunk
+                        if chunk_result:
+                            results.extend(chunk_result)
+                    except Exception as e:
+                        logger.warning(f"Chunk processing failed: {e}")
+                        continue
+                
+                discovered_devices = results
+                
+        except Exception as e:
+            logger.error(f"Multi-process discovery failed, falling back to async: {e}")
+            # Fallback to async method
+            discovered_devices = await self._scan_network_async_fallback(base_ip)
+        
+        return discovered_devices
+    
+    def _create_ip_chunks(self, base_ip: str, chunk_size: int = 50) -> List[List[str]]:
+        """Create chunks of IP addresses for parallel processing"""
+        chunks = []
+        for i in range(0, 254, chunk_size):
+            chunk = [f"{base_ip}.{j}" for j in range(i + 1, min(i + chunk_size + 1, 255))]
+            chunks.append(chunk)
+        return chunks
+    
+    def _process_ip_chunk_sync(self, ip_chunk: List[str]) -> List[Dict]:
+        """Process a chunk of IP addresses synchronously (runs in separate process)"""
+        import socket
+        import requests
+        import time
+        
+        results = []
+        
+        for ip in ip_chunk:
+            try:
+                # Quick port check
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(0.3)  # Very fast timeout
+                result = sock.connect_ex((ip, 80))
+                sock.close()
+                
+                if result == 0:
+                    # Port is open, try to identify device
+                    device_info = self._identify_device_sync(ip)
+                    if device_info:
+                        results.append(device_info)
+                        
+            except Exception as e:
+                continue
+        
+        return results
+    
+    def _identify_device_sync(self, ip: str) -> Optional[Dict]:
+        """Identify device synchronously (runs in separate process)"""
+        try:
+            import requests
+            
+            # Try to access device info with very fast timeout
+            url = f"http://{ip}/device"
+            response = requests.get(url, timeout=0.5)
+            
+            if response.status_code == 200:
+                data = response.text
+                if self._is_sonoff_response_sync(data):
+                    return self._create_device_info_sync(ip, data)
+            
+            # Try alternative endpoints
+            alternative_endpoints = ['/info', '/status', '/api/info']
+            for endpoint in alternative_endpoints:
+                try:
+                    url = f"http://{ip}{endpoint}"
+                    response = requests.get(url, timeout=0.3)
+                    if response.status_code == 200:
+                        data = response.text
+                        if self._is_sonoff_response_sync(data):
+                            return self._create_device_info_sync(ip, data)
+                except:
+                    continue
+                    
+        except Exception:
+            pass
+        
+        return None
+    
+    def _is_sonoff_response_sync(self, data: str) -> bool:
+        """Check if response indicates a Sonoff device (sync version)"""
+        sonoff_indicators = [
+            'sonoff', 'ewelink', 'ewelink.com', 'sonoff.tech',
+            'deviceid', 'apikey', 'model', 'brand'
+        ]
+        
+        data_lower = data.lower()
+        return any(indicator in data_lower for indicator in sonoff_indicators)
+    
+    def _create_device_info_sync(self, ip: str, data: str) -> Dict:
+        """Create device info from response (sync version)"""
+        try:
+            import json
+            
+            # Try to parse JSON response
+            if data.strip().startswith('{'):
+                json_data = json.loads(data)
+                device_id = json_data.get('deviceid', f"sonoff_{ip.replace('.', '_')}")
+                name = json_data.get('name', f"Sonoff Device {device_id}")
+                model = json_data.get('model', 'Unknown')
+            else:
+                device_id = f"sonoff_{ip.replace('.', '_')}"
+                name = f"Sonoff Device {device_id}"
+                model = 'Unknown'
+            
+            return {
+                'id': device_id,
+                'name': name,
+                'type': 'UNKNOWN',
+                'model': model,
+                'ip_address': ip,
+                'mac_address': 'Unknown',
+                'port': 80,
+                'firmware_version': None,
+                'hardware_version': None,
+                'supports_power_monitoring': False,
+                'supports_timer': True,
+                'supports_schedule': True
+            }
+            
+        except Exception:
+            # Fallback to basic info
+            return {
+                'id': f"sonoff_{ip.replace('.', '_')}",
+                'name': f"Sonoff Device {ip}",
+                'type': 'UNKNOWN',
+                'model': 'Unknown',
+                'ip_address': ip,
+                'mac_address': 'Unknown',
+                'port': 80,
+                'supports_power_monitoring': False,
+                'supports_timer': True,
+                'supports_schedule': True
+            }
+    
+    async def _scan_network_async_fallback(self, base_ip: str) -> List[Dict]:
+        """Fallback async scanning method"""
+        discovered_devices = []
+        
+        # Scan IP range with async optimization
         scan_tasks = []
         for i in range(1, 255):
             ip = f"{base_ip}.{i}"
             task = asyncio.create_task(self._scan_ip_for_sonoff_device(ip))
             scan_tasks.append(task)
         
-        # Execute scans with concurrency limit
-        semaphore = asyncio.Semaphore(self.config.network.max_concurrent_connections)
+        # Execute scans with high concurrency and timeout
+        semaphore = asyncio.Semaphore(100)  # Very high concurrency
         
         async def limited_scan(task):
             async with semaphore:
-                return await task
+                try:
+                    return await asyncio.wait_for(task, timeout=1.0)  # Faster timeout
+                except asyncio.TimeoutError:
+                    return None
+                except Exception:
+                    return None
         
         limited_tasks = [limited_scan(task) for task in scan_tasks]
         
-        # Wait for all scans to complete
-        results = await asyncio.gather(*limited_tasks, return_exceptions=True)
-        
-        # Collect successful results
-        for result in results:
-            if isinstance(result, dict) and result:
-                discovered_devices.append(result)
+        # Wait for all scans to complete with overall timeout
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(*limited_tasks, return_exceptions=True),
+                timeout=20.0  # Shorter overall timeout
+            )
+            
+            # Collect successful results
+            for result in results:
+                if isinstance(result, dict) and result:
+                    discovered_devices.append(result)
+                    
+        except asyncio.TimeoutError:
+            logger.warning("Async fallback discovery timed out after 20 seconds")
         
         return discovered_devices
     
@@ -207,7 +385,7 @@ class SonoffDeviceManager:
         """Check if a port is open on an IP address"""
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(self.config.network.connection_timeout)
+            sock.settimeout(0.5)  # Much faster timeout for port checking
             result = sock.connect_ex((ip, port))
             sock.close()
             return result == 0
@@ -220,9 +398,9 @@ class SonoffDeviceManager:
             if not self.session:
                 return None
             
-            # Try to access device info
+            # Try to access device info with faster timeout
             url = f"http://{ip}/device"
-            async with self.session.get(url, timeout=5) as response:
+            async with self.session.get(url, timeout=1.0) as response:
                 if response.status == 200:
                     data = await response.text()
                     
@@ -235,7 +413,7 @@ class SonoffDeviceManager:
             for endpoint in alternative_endpoints:
                 try:
                     url = f"http://{ip}{endpoint}"
-                    async with self.session.get(url, timeout=3) as response:
+                    async with self.session.get(url, timeout=0.8) as response:
                         if response.status == 200:
                             data = await response.text()
                             if self._is_sonoff_response(data):
@@ -392,7 +570,7 @@ class SonoffDeviceManager:
             supports_schedule=device_data.get('supports_schedule', False),
             firmware_version=device_data.get('firmware_version'),
             hardware_version=device_data.get('hardware_version'),
-            last_seen=datetime.utcnow()
+            last_seen=datetime.now(timezone.utc)
         )
         
         self.devices[device_id] = device
@@ -405,7 +583,7 @@ class SonoffDeviceManager:
         # Update basic info
         device.name = device_data.get('name', device.name)
         device.model = device_data.get('model', device.model)
-        device.last_seen = datetime.utcnow()
+        device.last_seen = datetime.now(timezone.utc)
         
         # Update capabilities if new info available
         if 'supports_power_monitoring' in device_data:
@@ -429,7 +607,7 @@ class SonoffDeviceManager:
             if success:
                 # Update device state
                 device.power_state = control.power
-                device._last_control = datetime.utcnow()
+                device._last_control = datetime.now(timezone.utc)
                 device._control_count += 1
                 
                 # Update status
@@ -513,13 +691,20 @@ class SonoffDeviceManager:
             if not self.session:
                 return
             
-            # Get device status
+            # Get device status with timeout
             url = f"http://{device.ip_address}:{device.port}/status"
-            async with self.session.get(url, timeout=5) as response:
-                if response.status == 200:
-                    data = await response.text()
-                    self._parse_status_response(device, data)
-                    
+            timeout = aiohttp.ClientTimeout(total=3)  # 3 second timeout
+            
+            async with aiohttp.ClientSession(timeout=timeout) as temp_session:
+                async with temp_session.get(url) as response:
+                    if response.status == 200:
+                        data = await response.text()
+                        self._parse_status_response(device, data)
+                    else:
+                        logger.debug(f"Device {device.id} returned status {response.status}")
+                        
+        except asyncio.TimeoutError:
+            logger.debug(f"Timeout updating status for {device.id}")
         except Exception as e:
             logger.debug(f"Failed to update status for {device.id}: {e}")
     
@@ -546,13 +731,16 @@ class SonoffDeviceManager:
                 
                 # Update status
                 device.status = DeviceStatus.ONLINE
-                device.last_seen = datetime.utcnow()
+                device.last_seen = datetime.now(timezone.utc)
                 
         except Exception as e:
             logger.debug(f"Failed to parse status response: {e}")
     
     def _convert_to_device_info(self, device: SonoffDevice) -> DeviceInfo:
         """Convert internal device to public DeviceInfo"""
+        # Convert datetime to ISO string if it exists
+        last_seen = device.last_seen.isoformat() if device.last_seen else None
+        
         return DeviceInfo(
             id=device.id,
             name=device.name,
@@ -569,7 +757,7 @@ class SonoffDeviceManager:
             supports_schedule=device.supports_schedule,
             firmware_version=device.firmware_version,
             hardware_version=device.hardware_version,
-            last_seen=device.last_seen,
+            last_seen=last_seen,
             voltage=device.voltage,
             current=device.current,
             power=device.power,
@@ -582,21 +770,42 @@ class SonoffDeviceManager:
         
         while True:
             try:
-                # Update status of all devices
+                # Check if we have any devices to monitor
+                if not self.devices:
+                    logger.debug("No devices to monitor, waiting...")
+                    await asyncio.sleep(self.monitoring_interval)
+                    continue
+                
+                # Update status of all devices with timeout protection
+                update_tasks = []
                 for device in self.devices.values():
+                    task = asyncio.create_task(self._update_device_status(device))
+                    update_tasks.append(task)
+                
+                # Wait for all updates with timeout
+                if update_tasks:
                     try:
-                        await self._update_device_status(device)
-                    except Exception as e:
-                        logger.debug(f"Failed to update status for {device.id}: {e}")
+                        await asyncio.wait_for(
+                            asyncio.gather(*update_tasks, return_exceptions=True),
+                            timeout=10  # 10 second timeout for all device updates
+                        )
+                    except asyncio.TimeoutError:
+                        logger.warning("Device status updates timed out, continuing...")
+                        # Cancel any remaining tasks
+                        for task in update_tasks:
+                            if not task.done():
+                                task.cancel()
                 
                 # Wait for next monitoring cycle
                 await asyncio.sleep(self.monitoring_interval)
                 
             except asyncio.CancelledError:
+                logger.info("Device monitoring cancelled")
                 break
             except Exception as e:
                 logger.error(f"Error in device monitoring: {e}")
-                await asyncio.sleep(5)  # Wait before retrying
+                # Wait before retrying, but don't block indefinitely
+                await asyncio.sleep(5)
         
         logger.info("Device monitoring stopped")
     

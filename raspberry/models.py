@@ -1,16 +1,13 @@
 """
 Data models for Sonoff WiFi Socket Server
 
-This module defines all the data structures used by the server:
-- Device information
-- Control commands
-- API responses
-- WebSocket events
+This module defines all the data structures used throughout the application
+including device information, control commands, and API responses.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
-from typing import Dict, List, Optional, Any, Union
+from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel, Field, validator
 
 
@@ -155,7 +152,7 @@ class StageResponse(BaseModel):
     
     # Additional data
     data: Optional[Dict[str, Any]] = Field(default=None, description="Additional response data")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Response timestamp")
     
     class Config:
         use_enum_values = True
@@ -186,7 +183,7 @@ class StageStatus(BaseModel):
     ota_progress: Optional[int] = Field(default=None, description="OTA progress percentage")
     
     # Timestamp
-    last_update: datetime = Field(default_factory=datetime.utcnow, description="Last status update")
+    last_update: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Last status update")
     
     class Config:
         use_enum_values = True
@@ -257,7 +254,7 @@ class BulkStageResponse(BaseModel):
     # Operation metadata
     operation_id: str = Field(..., description="Unique operation identifier")
     duration: float = Field(..., description="Operation duration in seconds")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Operation timestamp")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Operation timestamp")
     
     class Config:
         use_enum_values = True
@@ -279,7 +276,7 @@ class DeviceResponse(BaseModel):
     
     # Additional data
     data: Optional[Dict[str, Any]] = Field(default=None, description="Additional response data")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Response timestamp")
     
     class Config:
         use_enum_values = True
@@ -294,7 +291,7 @@ class WebSocketEvent(BaseModel):
     # Event information
     event_type: str = Field(..., description="Type of event")
     device_id: str = Field(..., description="Device identifier")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Event timestamp")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Event timestamp")
     
     # Event data
     data: Dict[str, Any] = Field(..., description="Event data")
@@ -332,7 +329,7 @@ class DeviceDiscoveryResponse(BaseModel):
     online_count: int = Field(..., description="Number of online devices")
     
     # Discovery metadata
-    discovery_time: datetime = Field(default_factory=datetime.utcnow, description="Discovery timestamp")
+    discovery_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Discovery timestamp")
     network_range: str = Field(..., description="Network range scanned")
     duration: float = Field(..., description="Discovery duration in seconds")
     
@@ -348,7 +345,7 @@ class HealthCheck(BaseModel):
     
     # Health status
     status: str = Field(default="healthy", description="Overall health status")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Health check timestamp")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Health check timestamp")
     
     # Component health
     server: str = Field(default="healthy", description="Server health status")
@@ -375,7 +372,7 @@ class ErrorResponse(BaseModel):
     details: Optional[str] = Field(default=None, description="Error details")
     
     # Error metadata
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Error timestamp")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Error timestamp")
     request_id: Optional[str] = Field(default=None, description="Request identifier")
     status_code: int = Field(..., description="HTTP status code")
     
@@ -455,7 +452,7 @@ class BulkDeviceResponse(BaseModel):
     # Operation metadata
     operation_id: str = Field(..., description="Unique operation identifier")
     duration: float = Field(..., description="Operation duration in seconds")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Operation timestamp")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Operation timestamp")
     
     class Config:
         use_enum_values = True
