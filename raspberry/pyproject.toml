@@ -7,7 +7,7 @@ name = "sonoff-lspa10-server"
 version = "0.1.0"
 description = "Sonoff WiFi Socket Server for Midburn Project"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
     {name = "Midburn Team", email = "team@midburn.org"}
@@ -36,6 +36,9 @@ dependencies = [
     "aiohttp>=3.9.0",
     "python-multipart>=0.0.6",
     "httpx>=0.25.0",
+    "pysonofflan==0.2.1",
+    "pysonofflanr3>=1.1.4",
+    "ewelink>=0.2.1",
 ]
 
 [project.optional-dependencies]
@@ -88,7 +91,7 @@ line_length = 88
 known_first_party = ["sonoff_lspa10_server"]
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true

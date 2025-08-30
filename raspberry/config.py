@@ -70,6 +70,18 @@ class NetworkConfig(BaseSettings):
         description="Local network range for device discovery"
     )
     
+    # Specific device IPs for faster discovery
+    specific_device_ips: List[str] = Field(
+        default=["192.168.1.216", "192.168.1.217"],
+        description="Specific IP addresses of known Sonoff devices"
+    )
+    
+    # Flag to use only specific IPs
+    use_specific_ips_only: bool = Field(
+        default=True,
+        description="Scan only specific IPs instead of full network range"
+    )
+    
     # Network scanning
     scan_ports: List[int] = Field(
         default=[80, 8080, 443, 8443],
