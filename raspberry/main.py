@@ -42,9 +42,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Global instances
-device_manager = SonoffDeviceManager()
-websocket_manager = WebSocketManager()
+# Server startup time
+startup_time = time.time()
+
+# Global audio manager instance
+audio_manager: Optional[AudioManager] = None
 
 # Helper function to safely serialize error details
 def safe_error_detail(error) -> str:
@@ -65,12 +67,6 @@ def safe_error_detail(error) -> str:
             return str(error)
     except Exception:
         return "Error serialization failed"
-
-# Server startup time
-startup_time = time.time()
-
-# Global audio manager instance
-audio_manager: Optional[AudioManager] = None
 
 
 @asynccontextmanager
@@ -425,8 +421,8 @@ async def bulk_control_devices(
 
 # Stage LED control endpoints
 # Stage server configuration
-STAGE_SERVER_BASE_URL = config.stage.base_url
-STAGE_SERVER_TIMEOUT = config.stage.timeout
+STAGE_SERVER_BASE_URL = "http://192.168.1.209"  # Default stage server URL
+STAGE_SERVER_TIMEOUT = 5.0  # Default timeout
 
 @app.post("/stage/idle")
 async def stage_idle():
