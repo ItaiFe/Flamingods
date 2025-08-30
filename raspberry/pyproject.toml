@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sonoff-lspa10-server"
-version = "0.1.0"
-description = "Sonoff WiFi Socket Server for Midburn Project"
+version = "0.2.0"
+description = "Sonoff WiFi Socket & Stage LED Server for Midburn Project"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}

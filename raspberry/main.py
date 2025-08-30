@@ -23,7 +23,8 @@ from config import get_config
 from models import (
     DeviceInfo, DeviceControl, DeviceResponse, DeviceDiscoveryRequest,
     DeviceDiscoveryResponse, HealthCheck, ErrorResponse, BulkDeviceControl,
-    BulkDeviceResponse, PowerState, WebSocketEvent
+    BulkDeviceResponse, PowerState, WebSocketEvent, StageControl, StageResponse,
+    StageStatus, StageLightingPlan, StagePlanInfo, BulkStageControl, BulkStageResponse
 )
 from sonoff_manager import device_manager
 from websocket_manager import websocket_manager
@@ -42,8 +43,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Sonoff WiFi Socket Server")
     
     try:
-        # Start managers
-        await device_manager.start()
+        # Start only websocket manager, device manager will start on first use
         await websocket_manager.start()
         
         logger.info("Server startup completed successfully")
@@ -58,7 +58,9 @@ async def lifespan(app: FastAPI):
         
         try:
             await websocket_manager.stop()
-            await device_manager.stop()
+            # Stop device manager if it was started
+            if device_manager.is_running():
+                await device_manager.stop()
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
 
@@ -117,6 +119,11 @@ async def discover_devices(
     try:
         logger.info("Device discovery requested")
         
+        # Start device manager if not already running
+        if not device_mgr.is_running():
+            logger.info("Starting device manager for discovery")
+            await device_mgr.start()
+        
         # Perform device discovery
         discovered_devices = await device_mgr.discover_devices(
             force_refresh=request.force_refresh
@@ -142,6 +149,11 @@ async def discover_devices(
 async def get_devices(device_mgr=Depends(get_device_manager)):
     """Get list of all discovered devices"""
     try:
+        # Start device manager if not already running
+        if not device_mgr.is_running():
+            logger.info("Starting device manager for device list")
+            await device_mgr.start()
+        
         devices = [device_mgr._convert_to_device_info(device) 
                   for device in device_mgr.devices.values()]
         return devices
@@ -180,6 +192,11 @@ async def control_device(
     try:
         logger.info(f"Control request for device {device_id}: {control.power}")
         
+        # Start device manager if not already running
+        if not device_mgr.is_running():
+            logger.info("Starting device manager for device control")
+            await device_mgr.start()
+        
         # Send control command
         response = await device_mgr.control_device(device_id, control)
         
@@ -206,6 +223,11 @@ async def set_power(
 ):
     """Set power state for a device (simplified control)"""
     try:
+        # Start device manager if not already running
+        if not device_mgr.is_running():
+            logger.info("Starting device manager for power control")
+            await device_mgr.start()
+        
         control = DeviceControl(power=power_state)
         response = await device_mgr.control_device(device_id, control)
         
@@ -231,6 +253,11 @@ async def toggle_device(
 ):
     """Toggle device power state"""
     try:
+        # Start device manager if not already running
+        if not device_mgr.is_running():
+            logger.info("Starting device manager for device toggle")
+            await device_mgr.start()
+        
         control = DeviceControl(power=PowerState.TOGGLE)
         response = await device_mgr.control_device(device_id, control)
         
@@ -258,6 +285,11 @@ async def bulk_control_devices(
     """Control multiple devices simultaneously"""
     try:
         logger.info(f"Bulk control request for {len(control.devices)} devices: {control.power}")
+        
+        # Start device manager if not already running
+        if not device_mgr.is_running():
+            logger.info("Starting device manager for bulk control")
+            await device_mgr.start()
         
         start_time = time.time()
         results = []
@@ -319,6 +351,139 @@ async def bulk_control_devices(
         
     except Exception as e:
         logger.error(f"Bulk control failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Stage LED control endpoints
+import httpx
+
+# Stage server configuration
+STAGE_SERVER_BASE_URL = config.stage.base_url
+STAGE_SERVER_TIMEOUT = config.stage.timeout
+
+@app.post("/stage/idle")
+async def stage_idle():
+    """Switch stage to IDLE lighting plan"""
+    try:
+        async with httpx.AsyncClient(timeout=STAGE_SERVER_TIMEOUT) as client:
+            response = await client.post(f"{STAGE_SERVER_BASE_URL}/idle")
+            
+        if response.status_code == 200:
+            return {"status": "success", "plan": "idle", "message": "Stage switched to IDLE plan"}
+        else:
+            raise HTTPException(status_code=response.status_code, detail=f"Stage server error: {response.text}")
+            
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=408, detail="Stage server timeout")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Cannot connect to stage server")
+    except Exception as e:
+        logger.error(f"Failed to control stage IDLE: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/stage/skip")
+async def stage_skip():
+    """Switch stage to SKIP lighting plan"""
+    try:
+        async with httpx.AsyncClient(timeout=STAGE_SERVER_TIMEOUT) as client:
+            response = await client.post(f"{STAGE_SERVER_BASE_URL}/skip")
+            
+        if response.status_code == 200:
+            return {"status": "success", "plan": "skip", "message": "Stage switched to SKIP plan"}
+        else:
+            raise HTTPException(status_code=response.status_code, detail=f"Stage server error: {response.text}")
+            
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=408, detail="Stage server timeout")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Cannot connect to stage server")
+    except Exception as e:
+        logger.error(f"Failed to control stage SKIP: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/stage/show")
+async def stage_show():
+    """Switch stage to SHOW lighting plan"""
+    try:
+        async with httpx.AsyncClient(timeout=STAGE_SERVER_TIMEOUT) as client:
+            response = await client.post(f"{STAGE_SERVER_BASE_URL}/show")
+            
+        if response.status_code == 200:
+            return {"status": "success", "plan": "show", "message": "Stage switched to SHOW plan"}
+        else:
+            raise HTTPException(status_code=response.status_code, detail=f"Stage server error: {response.text}")
+            
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=408, detail="Stage server timeout")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Cannot connect to stage server")
+    except Exception as e:
+        logger.error(f"Failed to control stage SHOW: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/stage/special")
+async def stage_special():
+    """Switch stage to SPECIAL lighting plan"""
+    try:
+        async with httpx.AsyncClient(timeout=STAGE_SERVER_TIMEOUT) as client:
+            response = await client.post(f"{STAGE_SERVER_BASE_URL}/special")
+            
+        if response.status_code == 200:
+            return {"status": "success", "plan": "special", "message": "Stage switched to SPECIAL plan"}
+        else:
+            raise HTTPException(status_code=response.status_code, detail=f"Stage server error: {response.text}")
+            
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=408, detail="Stage server timeout")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Cannot connect to stage server")
+    except Exception as e:
+        logger.error(f"Failed to control stage SPECIAL: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/stage/status")
+async def stage_status():
+    """Get stage device status"""
+    try:
+        async with httpx.AsyncClient(timeout=STAGE_SERVER_TIMEOUT) as client:
+            response = await client.get(f"{STAGE_SERVER_BASE_URL}/status")
+            
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise HTTPException(status_code=response.status_code, detail=f"Stage server error: {response.text}")
+            
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=408, detail="Stage server timeout")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Cannot connect to stage server")
+    except Exception as e:
+        logger.error(f"Failed to get stage status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/stage/health")
+async def stage_health():
+    """Get stage device health"""
+    try:
+        async with httpx.AsyncClient(timeout=STAGE_SERVER_TIMEOUT) as client:
+            response = await client.get(f"{STAGE_SERVER_BASE_URL}/health")
+            
+        if response.status_code == 200:
+            return {"status": "healthy", "stage_server": "OK"}
+        else:
+            raise HTTPException(status_code=response.status_code, detail=f"Stage server error: {response.text}")
+            
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=408, detail="Stage server timeout")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Cannot connect to stage server")
+    except Exception as e:
+        logger.error(f"Failed to get stage health: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -405,15 +570,25 @@ async def get_system_status(
 ):
     """Get system status information"""
     try:
+        # Start device manager if not already running (for status info)
+        if not device_mgr.is_running():
+            logger.info("Starting device manager for system status")
+            await device_mgr.start()
+        
         return {
             "server": {
                 "status": "running",
                 "uptime": time.time() - startup_time,
-                "version": "0.1.0"
+                "version": "0.2.0"
             },
             "devices": {
                 "total": device_mgr.get_device_count(),
                 "online": device_mgr.get_online_device_count()
+            },
+            "stage": {
+                "capabilities": ["idle", "skip", "show", "special"],
+                "status": "available",
+                "version": "1.0.0"
             },
             "websocket": {
                 "clients": ws_mgr.get_client_count(),

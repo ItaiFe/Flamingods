@@ -114,6 +114,33 @@ class WebSocketConfig(BaseSettings):
         extra = "allow"
 
 
+class StageConfig(BaseSettings):
+    """Stage ESP32 LED controller configuration settings"""
+    
+    # Stage server settings
+    base_url: str = Field(
+        default="http://192.168.1.209", 
+        description="Base URL for stage ESP32 server"
+    )
+    
+    # Communication settings
+    timeout: float = Field(default=5.0, description="Request timeout in seconds")
+    retry_attempts: int = Field(default=2, description="Number of retry attempts")
+    retry_delay: float = Field(default=1.0, description="Delay between retries in seconds")
+    
+    # Stage device settings
+    device_name: str = Field(default="stage-esp32", description="Stage device name")
+    max_brightness: int = Field(default=255, description="Maximum LED brightness")
+    
+    # Health check settings
+    health_check_interval: int = Field(default=30, description="Health check interval in seconds")
+    health_check_timeout: float = Field(default=3.0, description="Health check timeout in seconds")
+    
+    class Config:
+        env_file = ".env"
+        extra = "allow"
+
+
 class LoggingConfig(BaseSettings):
     """Logging configuration settings"""
     
@@ -143,6 +170,7 @@ class Config:
         self.sonoff = SonoffConfig()
         self.network = NetworkConfig()
         self.websocket = WebSocketConfig()
+        self.stage = StageConfig()
         self.logging = LoggingConfig()
     
     @validator('*', pre=True)
