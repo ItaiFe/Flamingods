@@ -1,0 +1,13 @@
+{
+  "id": "ambient_playlist",
+  "name": "Midburn Ambient",
+  "description": "Ambient music for the Midburn art installation",
+  "tracks": [],
+  "total_duration": 0.0,
+  "shuffle": true,
+  "repeat": true,
+  "auto_advance": true,
+  "created_at": "2024-08-30T17:00:00Z",
+  "last_modified": "2024-08-30T17:00:00Z",
+  "last_played": null
+}

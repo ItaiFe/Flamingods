@@ -330,6 +330,27 @@ class WebSocketManager:
         
         await self.broadcast_event(event)
     
+    async def broadcast_audio_event(self, audio_event):
+        """Broadcast audio event to all connected clients"""
+        if not self.clients:
+            return
+        
+        # Convert audio event to WebSocket event format
+        websocket_event = WebSocketEvent(
+            event_type="audio_event",
+            device_id="audio_system",
+            data={
+                "event_type": audio_event.event_type,
+                "timestamp": audio_event.timestamp.isoformat(),
+                "track_id": audio_event.track_id,
+                "playlist_id": audio_event.playlist_id,
+                "event_data": audio_event.data
+            }
+        )
+        
+        # Broadcast to all clients
+        await self.broadcast_event(websocket_event)
+    
     # Client management methods
     
     def get_client_count(self) -> int:

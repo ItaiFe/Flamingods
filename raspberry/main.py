@@ -1,11 +1,12 @@
 """
-Main Server for Sonoff WiFi Socket Server
+Main Server for Sonoff WiFi Socket Server with Audio System
 
 This is the main entry point for the FastAPI server that provides:
 - REST API for device control
 - WebSocket for real-time updates
 - Device discovery and management
 - Health monitoring
+- Audio playback and music management
 """
 
 import asyncio
@@ -28,6 +29,8 @@ from models import (
 )
 from sonoff_manager import device_manager
 from websocket_manager import websocket_manager
+from audio_manager import AudioManager
+from audio_endpoints import router as audio_router, set_audio_manager
 
 # Configure logging
 logger = structlog.get_logger()
@@ -35,16 +38,31 @@ logger = structlog.get_logger()
 # Server startup time
 startup_time = time.time()
 
+# Global audio manager instance
+audio_manager: Optional[AudioManager] = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifespan"""
     # Startup
-    logger.info("Starting Sonoff WiFi Socket Server")
+    logger.info("Starting Sonoff WiFi Socket Server with Audio System")
     
     try:
-        # Start only websocket manager, device manager will start on first use
+        # Start websocket manager
         await websocket_manager.start()
+        
+        # Initialize and start audio manager
+        global audio_manager
+        config = get_config()
+        audio_manager = AudioManager(config.audio)
+        await audio_manager.start()
+        
+        # Set audio manager in endpoints
+        set_audio_manager(audio_manager)
+        
+        # Add audio event callback to websocket manager
+        audio_manager.add_event_callback(websocket_manager.broadcast_audio_event)
         
         logger.info("Server startup completed successfully")
         yield
@@ -57,6 +75,10 @@ async def lifespan(app: FastAPI):
         logger.info("Shutting down Sonoff WiFi Socket Server")
         
         try:
+            # Stop audio manager
+            if audio_manager:
+                await audio_manager.stop()
+            
             await websocket_manager.stop()
             # Stop device manager if it was started
             if device_manager.is_running():
@@ -67,9 +89,9 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI app
 app = FastAPI(
-    title="Sonoff WiFi Socket Server",
-    description="Server for controlling Sonoff WiFi sockets in the Midburn project",
-    version="0.1.0",
+    title="Sonoff WiFi Socket Server with Audio System",
+    description="Server for controlling Sonoff WiFi sockets and audio playback in the Midburn project",
+    version="0.2.0",
     lifespan=lifespan
 )
 
@@ -93,6 +115,15 @@ def get_device_manager():
 def get_websocket_manager():
     """Get WebSocket manager instance"""
     return websocket_manager
+
+
+def get_audio_manager():
+    """Get audio manager instance"""
+    return audio_manager
+
+
+# Include audio router
+app.include_router(audio_router)
 
 
 # Health check endpoint

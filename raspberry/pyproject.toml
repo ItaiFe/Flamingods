@@ -39,6 +39,8 @@ dependencies = [
     "pysonofflan==0.2.1",
     "pysonofflanr3>=1.1.4",
     "ewelink>=0.2.1",
+    "pygame>=2.5.0",
+    "mutagen>=1.47.0",
 ]
 
 [project.optional-dependencies]

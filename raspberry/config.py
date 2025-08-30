@@ -6,6 +6,7 @@ This module handles all configuration including:
 - Sonoff device settings
 - Network configuration
 - Security settings
+- Audio system settings
 """
 
 import os
@@ -97,6 +98,57 @@ class NetworkConfig(BaseSettings):
         extra = "allow"
 
 
+class AudioConfig(BaseSettings):
+    """Audio system configuration settings"""
+    
+    # Music folder settings
+    music_folder: str = Field(
+        default="./music", 
+        description="Path to music folder"
+    )
+    playlist_folder: str = Field(
+        default="./music/playlists", 
+        description="Path to playlist folder"
+    )
+    
+    # Supported audio formats
+    supported_formats: List[str] = Field(
+        default=["mp3", "wav", "flac", "ogg"],
+        description="Supported audio file formats"
+    )
+    
+    # Audio device settings
+    audio_device: Optional[str] = Field(
+        default=None, 
+        description="Audio output device (auto-detect if None)"
+    )
+    sample_rate: int = Field(default=44100, description="Audio sample rate in Hz")
+    channels: int = Field(default=2, description="Number of audio channels")
+    
+    # Playback settings
+    default_volume: int = Field(
+        default=70, 
+        ge=0, 
+        le=100, 
+        description="Default volume level (0-100)"
+    )
+    fade_duration: float = Field(default=1.0, description="Default fade duration in seconds")
+    crossfade_duration: float = Field(default=2.0, description="Crossfade duration between tracks")
+    
+    # Performance settings
+    buffer_size: int = Field(default=4096, description="Audio buffer size")
+    max_queue_size: int = Field(default=1000, description="Maximum tracks in queue")
+    
+    # Metadata settings
+    scan_on_startup: bool = Field(default=True, description="Scan music folder on startup")
+    auto_update_metadata: bool = Field(default=True, description="Auto-update track metadata")
+    extract_cover_art: bool = Field(default=False, description="Extract cover art from audio files")
+    
+    class Config:
+        env_file = ".env"
+        extra = "allow"
+
+
 class WebSocketConfig(BaseSettings):
     """WebSocket configuration settings"""
     
@@ -108,33 +160,6 @@ class WebSocketConfig(BaseSettings):
     # Event settings
     event_queue_size: int = Field(default=1000, description="Event queue size")
     broadcast_events: bool = Field(default=True, description="Broadcast events to all clients")
-    
-    class Config:
-        env_file = ".env"
-        extra = "allow"
-
-
-class StageConfig(BaseSettings):
-    """Stage ESP32 LED controller configuration settings"""
-    
-    # Stage server settings
-    base_url: str = Field(
-        default="http://192.168.1.209", 
-        description="Base URL for stage ESP32 server"
-    )
-    
-    # Communication settings
-    timeout: float = Field(default=5.0, description="Request timeout in seconds")
-    retry_attempts: int = Field(default=2, description="Number of retry attempts")
-    retry_delay: float = Field(default=1.0, description="Delay between retries in seconds")
-    
-    # Stage device settings
-    device_name: str = Field(default="stage-esp32", description="Stage device name")
-    max_brightness: int = Field(default=255, description="Maximum LED brightness")
-    
-    # Health check settings
-    health_check_interval: int = Field(default=30, description="Health check interval in seconds")
-    health_check_timeout: float = Field(default=3.0, description="Health check timeout in seconds")
     
     class Config:
         env_file = ".env"
@@ -169,8 +194,8 @@ class Config:
         self.server = ServerConfig()
         self.sonoff = SonoffConfig()
         self.network = NetworkConfig()
+        self.audio = AudioConfig()
         self.websocket = WebSocketConfig()
-        self.stage = StageConfig()
         self.logging = LoggingConfig()
     
     @validator('*', pre=True)
