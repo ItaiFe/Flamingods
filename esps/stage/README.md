@@ -1,195 +1,125 @@
-# Stage ESP32 - LED Lighting Controller
+# ESP32 FastLED Project
 
-A WiFi-enabled ESP32 device that controls 1 LED strip with different lighting plans triggered via HTTP endpoints. Designed for the Midburn art installation project.
+This is an ESP32 project using the FastLED library to control addressable LED strips.
 
 ## Features
 
-### 4 LED Lighting Plans
-1. **IDLE Plan** - Subtle, ambient lighting with slow color transitions and gentle waves
-2. **SKIP Plan** - Quick, bright flashes for transitions between scenes
-3. **SHOW Plan** - Dynamic, performance-focused patterns with multiple sub-patterns
-4. **SPECIAL Plan** - Unique effects including fire, aurora, and matrix patterns
+- **Button Control**: Single, double, multi-press, and long-press detection
+- **LED Effects**: Multiple color patterns based on button presses
+- **WiFi Connectivity**: HTTP requests to webhooks
+- **OTA Updates**: Over-the-air firmware updates via WiFi
+- **Visual Feedback**: LED patterns show OTA progress and status
 
-### HTTP API Endpoints
-- `POST /idle` - Switch to idle lighting plan
-- `POST /skip` - Switch to skip lighting plan  
-- `POST /show` - Switch to show lighting plan
-- `POST /special` - Switch to special lighting plan
-- `GET /status` - Get current status and system information
-- `GET /health` - Health check endpoint
+## Hardware Requirements
 
-### Hardware
-- **Controller**: ESP32 development board
-- **LEDs**: 1x WS2812B LED strip (100 LEDs)
-- **Power**: 5V power supply for LED strip
-- **Connectivity**: WiFi for HTTP control
-
-## Pin Configuration
-
-| Pin | Function | LED Strip |
-|-----|----------|-----------|
-| 4   | LED Strip Data | Single WS2812B strip |
-
-## Network Configuration
-
-The ESP32 connects to the local WiFi network:
-- **SSID**: Flamingods
-- **Password**: Aa123456!
-- **IP**: Automatically assigned via DHCP
-- **Port**: 80 (HTTP)
-
-## Building and Flashing
-
-### Prerequisites
-- PlatformIO IDE or CLI
 - ESP32 development board
-- USB-C cable for programming
+- WS2812B LED strip (or compatible)
+- Power supply (5V for most LED strips)
+- Jumper wires
 
-### Build Commands
+## Wiring
+
+Connect your LED strip to the ESP32:
+- LED Data Pin → GPIO 2 (configurable in code)
+- LED VCC → 5V (or appropriate voltage for your strip)
+- LED GND → GND
+
+## Software Requirements
+
+- PlatformIO IDE (recommended) or Arduino IDE
+- FastLED library
+
+## Installation
+
+### Using PlatformIO (Recommended)
+
+1. Install PlatformIO IDE
+2. Open this project folder
+3. Build and upload to your ESP32
+
+### Using Arduino IDE
+
+1. Install ESP32 board support
+2. Install FastLED library from Library Manager
+3. Copy the code from `src/main.cpp`
+4. Select your ESP32 board and upload
+
+## Configuration
+
+Edit `src/main.cpp` to configure:
+
+- `LED_PIN`: GPIO pin connected to LED data line (default: 2)
+- `NUM_LEDS`: Number of LEDs in your strip (default: 50)
+- `LED_TYPE`: Type of LED strip (default: WS2812B)
+- `COLOR_ORDER`: Color order for your LEDs (default: GRB)
+
+## Usage
+
+1. Connect your ESP32 to your computer
+2. Upload the code
+3. Connect the LED strip according to the wiring diagram
+4. Power on and enjoy the light show!
+
+## OTA (Over-The-Air) Updates
+
+This project includes OTA functionality, allowing you to update the firmware wirelessly:
+
+### First Time Setup
+1. Flash the code normally via USB (this enables OTA)
+2. The ESP32 will connect to WiFi and enable OTA
+3. Note the IP address shown in serial monitor
+
+### Updating Firmware Wirelessly
+
+#### Method 1: Using PlatformIO CLI
 ```bash
-# Navigate to the stage directory
-cd esps/stage
-
-# Build the project
-pio run
-
-# Upload to ESP32
-pio run --target upload
-
-# Monitor serial output
-pio device monitor
+# Build and upload via OTA
+pio run --target upload --upload-port ota://<ESP32_IP_ADDRESS>
 ```
 
-### Dependencies
-- FastLED library (v3.5.0+)
-- Arduino_JSON library (v0.1.0+)
-- ESP32 Arduino framework
-
-## Usage Examples
-
-### Switch to Show Mode
+#### Method 2: Using the Python Script
 ```bash
-curl -X POST http://[ESP32_IP]/show
+# Auto-detect ESP32 IP
+python upload_ota.py
+
+# Or specify IP manually
+python upload_ota.py 192.168.1.100
 ```
 
-### Check Status
-```bash
-curl http://[ESP32_IP]/status
-```
+#### Method 3: Using Arduino IDE
+1. Go to Tools → Port → Network Ports
+2. Select your ESP32's IP address
+3. Upload as normal
 
-### Health Check
-```bash
-curl http://[ESP32_IP]/health
-```
+### OTA Security
+- Hostname: `ESP32-Flamingo-Button`
+- Password: `flamingo123` (change in code if needed)
+- Port: 3232 (default)
 
-## LED Plan Details
+### Visual OTA Feedback
+- **Yellow LEDs**: OTA update in progress
+- **Green LEDs**: Update successful
+- **Red LEDs**: Update failed
+- **Brightness**: Shows upload progress
 
-### IDLE Plan
-- **Purpose**: Ambient background lighting
-- **Pattern**: Gentle color waves with subtle glitter across the LED strip
-- **Speed**: Slow, relaxing transitions
-- **Brightness**: Low to medium (50-100)
+## Effects Included
 
-### SKIP Plan
-- **Purpose**: Quick scene transitions
-- **Pattern**: Bright white flash → fade → color flash → fade across the strip
-- **Duration**: ~400ms total
-- **Auto-return**: Automatically returns to IDLE after completion
+- **Rainbow Wave**: Continuously scrolling rainbow effect
+- **Breathing**: Pulsing blue light effect
+- **Color Wipe**: Sequential color filling
+- **Twinkle**: Random twinkling stars effect
 
-### SHOW Plan
-- **Purpose**: Main performance lighting
-- **Patterns**: 
-  - Rainbow wave across the LED strip
-  - Pulsing circles from center of strip
-  - Running lights animation along the strip
-  - Strobe effect on entire strip
-- **Rotation**: Automatically cycles through patterns every 5 seconds
-- **Brightness**: High (200-255)
-
-### SPECIAL Plan
-- **Purpose**: Special effects and unique lighting
-- **Effects**:
-  - Fire effect with heat colors across the strip
-  - Aurora borealis simulation along the strip
-  - Matrix-style green rain effect
-- **Rotation**: Changes effects every 5 seconds
-- **Brightness**: Variable based on effect
-
-## Integration
-
-### Main Control Application
-The stage ESP integrates with the main control system via HTTP API calls. The main application can:
-- Trigger lighting plan changes
-- Monitor current status
-- Check system health
-- Coordinate with other ESP devices
-
-### Raspberry Pi Hub
-Communicates with the Raspberry Pi control hub for:
-- Centralized lighting control
-- Performance coordination
-- System monitoring
+To switch between effects, uncomment the desired effect function in the `loop()` function and comment out the others.
 
 ## Troubleshooting
 
-### Common Issues
+- If LEDs don't light up, check wiring and power supply
+- If colors are wrong, try changing `COLOR_ORDER` (GRB, RGB, BGR, etc.)
+- If flickering occurs, add a capacitor (1000µF) across the power supply
+- Ensure adequate power supply for your LED count (60mA per LED for full brightness)
 
-1. **WiFi Connection Failed**
-   - Check SSID and password in main.cpp
-   - Verify network availability
-   - Check signal strength
+## Power Requirements
 
-2. **LEDs Not Responding**
-   - Verify power supply (5V, sufficient current - 8A recommended)
-   - Check pin connection to GPIO 4
-   - Confirm LED strip type (WS2812B)
-   - Verify single LED strip connection
-
-3. **HTTP Endpoints Not Responding**
-   - Check WiFi connection
-   - Verify IP address assignment
-   - Check serial monitor for error messages
-
-4. **LED Patterns Not Working**
-   - Verify single LED strip connection
-   - Check GPIO 4 connection
-   - Ensure proper power supply capacity
-   - Check for loose connections
-
-### Debug Information
-The ESP32 outputs detailed debug information via serial monitor:
-- WiFi connection status
-- HTTP request handling
-- LED plan changes
-- System status updates
-
-## Development
-
-### Adding New Lighting Plans
-1. Add new plan to `LightingPlan` enum in `led_plans.h`
-2. Implement update function in `led_plans.cpp`
-3. Add HTTP handler in `main.cpp`
-4. Update documentation
-
-### Customizing LED Patterns
-- Modify pattern algorithms in the respective `update*()` functions
-- Adjust timing and color parameters
-- Add new effects using FastLED functions
-- All patterns work on the single LED strip
-
-### Performance Optimization
-- Monitor memory usage with LED count
-- Optimize animation timing for smooth performance
-- Use efficient FastLED functions for complex patterns
-- Single strip reduces complexity and improves performance
-
-## License
-
-This project is part of the Midburn art installation and follows the project's licensing terms.
-
-## Support
-
-For technical support or questions about the stage ESP:
-- Check the serial monitor output
-- Review the main project documentation
-- Contact the development team
+- Each LED can draw up to 60mA at full brightness
+- For 50 LEDs: up to 3A at full brightness
+- Use appropriate power supply and consider external power for large strips

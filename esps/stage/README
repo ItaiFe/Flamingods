@@ -1,0 +1,5 @@
+# Library Directory
+
+This directory is for custom libraries.
+
+For this FastLED project, the FastLED library is managed by PlatformIO and will be automatically downloaded based on the dependencies in platformio.ini.

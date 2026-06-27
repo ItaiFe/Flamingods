@@ -4,12 +4,12 @@
 #include <FastLED.h>
 
 // LED Configuration
-#define NUM_LEDS 200
+#define NUM_LEDS 300
 #define BRIGHTNESS 100
 #define MAX_BRIGHTNESS 255
 
 // Pin definition for single LED strip
-#define LED_STRIP_PIN 2
+#define LED_STRIP_PIN 4
 
 // LED array for single strip
 extern CRGB leds[NUM_LEDS];

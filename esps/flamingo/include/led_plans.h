@@ -4,14 +4,14 @@
 #include <FastLED.h>
 
 // LED configuration
-#define NUM_LEDS_PER_STRIP 100  // Number of LEDs in each strip
+#define NUM_LEDS_PER_STRIP 200  // Number of LEDs in each strip (doubled)
+#define NUM_STRIPS 3            // Number of LED strips
 #define BRIGHTNESS 100          // LED brightness (0-255)
 
-// Define pins for LED strips
-#define LED_RED_PIN    4
-#define LED_GREEN_PIN  2
-#define LED_BLUE_PIN   5
-#define LED_YELLOW_PIN 18
+// Define pins for LED strips (3 strips total)
+#define LED_STRIP_1_PIN  2
+#define LED_STRIP_2_PIN  4
+#define LED_STRIP_3_PIN  12
 
 // Pattern states
 enum PatternState {
@@ -19,15 +19,19 @@ enum PatternState {
   PATTERN_MOVING
 };
 
-// LED arrays for each strip
-extern CRGB leds_red[NUM_LEDS_PER_STRIP];
-extern CRGB leds_green[NUM_LEDS_PER_STRIP];
-extern CRGB leds_blue[NUM_LEDS_PER_STRIP];
-extern CRGB leds_yellow[NUM_LEDS_PER_STRIP];
+// LED arrays for each strip (all strips display the same pattern/color)
+extern CRGB leds_strip_1[NUM_LEDS_PER_STRIP];
+extern CRGB leds_strip_2[NUM_LEDS_PER_STRIP];
+extern CRGB leds_strip_3[NUM_LEDS_PER_STRIP];
 
 // LED pattern functions
 void clearAllLeds();
 void playIdleAnimation();
 void playMovingPattern();
+void playMegaSpecialPattern();
+void playStation1Special();  // Fire Wave
+void playStation2Special();  // Ocean Storm
+void playStation3Special();  // Northern Lights
+void playStation4Special();  // Electric Pulse
 
 #endif // LED_PLANS_H

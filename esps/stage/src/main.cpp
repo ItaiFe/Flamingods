@@ -15,8 +15,8 @@
 #include "led_plans.h"
 
 // WiFi Configuration
-const char* ssid = "DiMax Residency 2.4Ghz";
-const char* password = "33355555DM";
+const char* ssid = "Flamingods";
+const char* password = "Aa123456!";
 
 // Firmware version
 #ifndef FIRMWARE_VERSION
@@ -34,6 +34,11 @@ LightingPlan currentPlan = PLAN_IDLE;
 bool wifiConnected = false;
 unsigned long lastStatusUpdate = 0;
 
+// Relay control variables
+bool relayActive = false;
+unsigned long relayStartTime = 0;
+const unsigned long RELAY_DURATION = 5000; // 5 seconds in milliseconds
+
 // OTA variables
 bool otaInProgress = false;
 unsigned long otaStartTime = 0;
@@ -47,6 +52,7 @@ void handleIdle();
 void handleSkip();
 void handleShow();
 void handleSpecial();
+void handleSmoke();
 void handleStatus();
 void handleHealth();
 void handleVersion();
@@ -59,15 +65,20 @@ void setup() {
     Serial.println("\n=== Stage ESP32 Starting ===");
     Serial.printf("Firmware Version: %s\n", FIRMWARE_VERSION);
     
-    // Initialize LED strip
-    FastLED.addLeds<WS2812B, LED_STRIP_PIN, GRB>(leds, NUM_LEDS);
-    
+    // Initialize single long LED strip on pin 4
+    FastLED.addLeds<WS2812B, LED_STRIP_PIN, BRG>(leds, NUM_LEDS);
+
     FastLED.setBrightness(BRIGHTNESS);
     FastLED.clear();
     FastLED.show();
-    
+
     // Initialize LED controller
     ledController.begin();
+
+    // Initialize relay pin
+    pinMode(RELAY_PIN, OUTPUT);
+    digitalWrite(RELAY_PIN, LOW);  // Relay LOW by default (inactive)
+    Serial.println("Relay pin initialized (GPIO23)");
     
     // Setup WiFi
     setupWiFi();
@@ -93,7 +104,14 @@ void loop() {
     
     // Update FastLED
     FastLED.show();
-    
+
+    // Check relay auto-off (return to LOW after 5 seconds)
+    if (relayActive && (millis() - relayStartTime >= RELAY_DURATION)) {
+        digitalWrite(RELAY_PIN, LOW);
+        relayActive = false;
+        Serial.println("Relay automatically returned to LOW after 5 seconds");
+    }
+
     // Status updates
     if (millis() - lastStatusUpdate > 5000) {
         lastStatusUpdate = millis();
@@ -186,6 +204,7 @@ void setupServer() {
     server.on("/skip", HTTP_POST, handleSkip);
     server.on("/show", HTTP_POST, handleShow);
     server.on("/special", HTTP_POST, handleSpecial);
+    server.on("/smoke", HTTP_POST, handleSmoke);
     server.on("/status", HTTP_GET, handleStatus);
     server.on("/health", HTTP_GET, handleHealth);
     server.on("/version", HTTP_GET, handleVersion);
@@ -228,12 +247,23 @@ void handleSpecial() {
     Serial.println("POST /special - Switching to SPECIAL plan");
     currentPlan = PLAN_SPECIAL;
     ledController.setPlan(PLAN_SPECIAL);
-    
+
     server.send(200, "application/json", "{\"status\":\"success\",\"plan\":\"special\"}");
 }
 
+void handleSmoke() {
+    Serial.println("POST /smoke - Triggering relay HIGH for 5 seconds");
+
+    // Set relay HIGH (active)
+    digitalWrite(RELAY_PIN, HIGH);
+    relayActive = true;
+    relayStartTime = millis();
+
+    server.send(200, "application/json", "{\"status\":\"success\",\"relay\":\"high\",\"duration\":5}");
+}
+
 void handleStatus() {
-    StaticJsonDocument<300> doc;
+    StaticJsonDocument<350> doc;
     doc["status"] = "success";
     doc["current_plan"] = currentPlan;
     doc["wifi_connected"] = wifiConnected;
@@ -244,6 +274,10 @@ void handleStatus() {
     doc["device"] = "stage-esp32";
     doc["ota_in_progress"] = otaInProgress;
     doc["ota_progress"] = otaProgress;
+    doc["relay_active"] = relayActive;
+    if (relayActive) {
+        doc["relay_time_remaining"] = (RELAY_DURATION - (millis() - relayStartTime)) / 1000;
+    }
     
     String response;
     serializeJson(doc, response);

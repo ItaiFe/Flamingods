@@ -14,11 +14,12 @@
 #include <WebServer.h>
 #include <ArduinoJson.h>
 #include <ArduinoOTA.h>
+#include <ESPmDNS.h>
 #include "led_plans.h"
 
 // WiFi Configuration
-const char* ssid = "DiMax Residency 2.4Ghz";
-const char* password = "33355555DM";
+const char* ssid = "flamingods-station";
+const char* password = "Aa123456!";
 
 // Firmware version
 #ifndef FIRMWARE_VERSION
@@ -77,10 +78,19 @@ void setup() {
     
     // Setup WiFi
     setupWiFi();
-    
+
+    // Setup mDNS for hostname resolution
+    if (wifiConnected) {
+        if (MDNS.begin("crown-esp32")) {
+            Serial.println("mDNS responder started: crown-esp32.local");
+        } else {
+            Serial.println("Error setting up mDNS responder!");
+        }
+    }
+
     // Setup OTA
     setupOTA();
-    
+
     // Setup HTTP server
     setupServer();
     

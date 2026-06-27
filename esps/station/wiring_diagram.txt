@@ -24,17 +24,17 @@ Button Connections:
    - Internal pull-up resistor enabled
 
 3. BLUE Button:
-   - One terminal -> GPIO 5
+   - One terminal -> GPIO 30
    - Other terminal -> GND
    - Internal pull-up resistor enabled
 
 4. YELLOW Button:
-   - One terminal -> GPIO 18
+   - One terminal -> GPIO 12
    - Other terminal -> GND
    - Internal pull-up resistor enabled
 
 5. WHITE Button:
-   - One terminal -> GPIO 19
+   - One terminal -> GPIO 14
    - Other terminal -> GND
    - Internal pull-up resistor enabled
 
@@ -53,9 +53,9 @@ IMPORTANT NOTES:
 2. GPIO PIN ASSIGNMENTS:
    - GPIO 2: Red Button
    - GPIO 4: Green Button
-   - GPIO 5: Blue Button
-   - GPIO 18: Yellow Button
-   - GPIO 19: White Button
+   - GPIO 30: Blue Button
+   - GPIO 12: Yellow Button
+   - GPIO 14: White Button
 
 3. BUTTON TYPES:
    - Momentary push buttons (normally open)

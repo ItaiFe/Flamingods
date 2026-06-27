@@ -1,0 +1,8 @@
+PS C:\Users\Flamingo\Desktop\flamingo-button> pio run --target upload --upload-
+port COM44
+
+PS C:\Users\Flamingo\Desktop\flamingo-button> python -c "import serial; import
+time; ser = serial.Serial('COM44', 460800); print('Connected to ESP32. Press Ct
+rl+C to exit.'); [print(ser.readline().decode('utf-8', errors='ignore').strip()
+) for _ in iter(lambda: True, False)]"
+

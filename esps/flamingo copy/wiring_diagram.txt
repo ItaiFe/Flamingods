@@ -1,0 +1,58 @@
+ESP32 Simon Game - Wiring Diagram
+===================================
+
++---------------+
+|               |
+|    ESP32      |
+|               |
++---------------+
+    |  |  |  |
+    |  |  |  |
+    |  |  |  +--- GPIO2  --> Red LED Strip Data In
+    |  |  |                  (WS2812B)
+    |  |  |
+    |  |  +------ GPIO4  --> Green LED Strip Data In
+    |  |                      (WS2812B)
+    |  |
+    |  +--------- GPIO5  --> Blue LED Strip Data In
+    |                         (WS2812B)
+    |
+    +------------ GPIO18 --> Yellow LED Strip Data In
+                              (WS2812B)
+
++---------------+
+|               |
+|    ESP32      |
+|               |
++---------------+
+    |  |  |  |
+    |  |  |  |
+    |  |  |  +--- GPIO13 --> Red Button --> GND
+    |  |  |
+    |  |  +------ GPIO12 --> Green Button --> GND
+    |  |
+    |  +--------- GPIO14 --> Blue Button --> GND
+    |
+    +------------ GPIO27 --> Yellow Button --> GND
+
+
+Power Connections:
+------------------
+
+ESP32 VIN ----- 5V Power Supply
+ESP32 GND ----- GND
+
+All LED Strips:
+VCC ----------- 5V Power Supply
+GND ----------- GND
+
+Note: If using many LEDs, use an external 5V power supply
+      with appropriate current rating. Connect the power supply
+      ground to the ESP32 ground to share a common ground.
+
+Button Connections Detail:
+-------------------------
+Each button has one pin connected to the specified GPIO pin,
+and the other pin connected to ground (GND). The ESP32
+uses internal pull-up resistors, so no external resistors are
+required for the buttons. 

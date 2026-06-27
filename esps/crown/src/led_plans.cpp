@@ -92,17 +92,59 @@ void LEDPlans::clearAll() {
     setAllLeds(CRGB::Black);
 }
 
-// IDLE PLAN: Test with Pure Blue
+// IDLE PLAN: Rainbow Meteor with Sparkling Stars
 void LEDPlans::updateIdle() {
-    haloPulseStep++;
-    
-    // Test with pure blue to debug color order
-    uint8_t pulseBrightness = sin8(haloPulseStep * 2);  // Slow, gentle pulse
-    setAllLeds(CRGB(0, 0, pulseBrightness));  // Pure blue (Blue only, no Red, no Green)
-    
-    // Reset pulse step to prevent overflow
-    if (haloPulseStep > 127) {
-        haloPulseStep = 0;
+    // Change speed every few rounds (every 3 full circles)
+    static uint8_t lastRound = 0;
+    static uint8_t speed = 3;
+    uint8_t currentRound = haloPulseStep / NUM_LEDS;
+    if (currentRound != lastRound && currentRound % 3 == 0) {
+        speed = random8(2, 6);  // Random speed between 2-5
+        lastRound = currentRound;
+    }
+
+    haloPulseStep += speed;  // Variable meteor movement speed
+
+    // Fade all LEDs to create trail effect
+    fadeToBlack(40);
+
+    // Add random sparkling white stars in background
+    if (random8() < 60) {  // ~23% chance for a sparkle
+        leds[random16(NUM_LEDS)] = CRGB::White;
+    }
+
+    // Calculate meteor head position
+    int meteorPos = haloPulseStep % NUM_LEDS;
+
+    // Strong vivid colors: Red, Orange, Yellow, Green, Blue, Purple
+    const uint8_t strongHues[] = {
+        0,      // Red
+        16,     // Orange-Red
+        32,     // Orange
+        64,     // Yellow
+        96,     // Green
+        160,    // Blue
+        192,    // Purple
+        224     // Magenta
+    };
+    const int numColors = 8;
+
+    // Draw meteor with STRONG bold colors
+    for (int i = 0; i < 45; i++) {  // Longer tail - 45 pixels
+        int pixelPos = (meteorPos - i + NUM_LEDS) % NUM_LEDS;
+
+        // Each color spans 5-6 pixels for bold, distinct blocks
+        int colorIndex = ((haloPulseStep / 8) + (i / 6)) % numColors;
+        uint8_t hue = strongHues[colorIndex];
+
+        if (i < 12) {
+            // Meteor head - full brightness STRONG colors
+            leds[pixelPos] = CHSV(hue, 255, 255);
+        } else {
+            // Meteor tail - fading STRONG colors
+            uint8_t brightness = 255 - ((i - 12) * 8);  // Gradual fade
+            leds[pixelPos] = CHSV(hue, 255, brightness);
+        }
     }
 }
 
