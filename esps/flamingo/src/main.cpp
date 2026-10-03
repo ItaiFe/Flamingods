@@ -1022,9 +1022,11 @@ void handleNotFound() {
 void handleUDP() {
     int packetSize;
     while ((packetSize = udp.parsePacket()) > 0) {  // drain every waiting packet
-    if (packetSize >= 2) {
+    if (packetSize < 2) { udp.flush(); continue; }  // a partly-read packet would block parsePacket()
+    {
         uint8_t buffer[2];
         udp.read(buffer, 2);
+        udp.flush();  // drop any extra bytes for the same reason
 
         uint8_t stationId = buffer[0];
         uint8_t buttonMask = buffer[1];
