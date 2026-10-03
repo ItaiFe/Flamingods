@@ -43,6 +43,15 @@ WiFiUDP udp;
 #define UDP_PORT 5000
 #define MAX_STATIONS 4
 
+// Simon game (station ID 5). Protocol: Simon repo docs/superpowers/specs/2026-10-03-flamingo-pairing-design.md
+#define SIMON_ID 5
+#define SIMON_TIMEOUT_MS 2000   // unpair if Simon goes silent this long
+#define SIMON_PINK 0x20
+#define SIMON_WIN 0xFE
+#define SIMON_UNPAIR 0xFF
+unsigned long simonLastPacket = 0;
+CRGB simonColor = CRGB::Black;
+
 // Lighting plan enum
 enum LightingPlan {
     PLAN_IDLE = 0,
@@ -55,7 +64,8 @@ enum LightingPlan {
     PLAN_STATION_1_SPECIAL = 7,  // Station 1: Fire Wave (8 seconds)
     PLAN_STATION_2_SPECIAL = 8,  // Station 2: Ocean Storm (8 seconds)
     PLAN_STATION_3_SPECIAL = 9,  // Station 3: Northern Lights (8 seconds)
-    PLAN_STATION_4_SPECIAL = 10  // Station 4: Electric Pulse (8 seconds)
+    PLAN_STATION_4_SPECIAL = 10, // Station 4: Electric Pulse (8 seconds)
+    PLAN_SIMON = 11              // Simon game paired: shows Simon colours, stations ignored
 };
 
 // Station button state tracking (UDP-based)
@@ -145,6 +155,9 @@ void playPartyMode();
 
 // UDP and station management functions
 void handleUDP();
+void handleSimon(uint8_t value);
+void checkSimonTimeout();
+void playSimonPattern();
 void checkStationTimeouts();
 CRGB getBlendedColorFromPackets();
 CRGB getBlendedColorFromStations();
@@ -260,6 +273,9 @@ void loop() {
             break;
         case PLAN_MIXED_COLORS:
             playMixedColorsPattern();
+            break;
+        case PLAN_SIMON:
+            playSimonPattern();
             break;
         case PLAN_PARTY:
             playPartyMode();
@@ -1004,13 +1020,19 @@ void handleNotFound() {
  * Each packet is stored with 100ms lifetime for blending
  */
 void handleUDP() {
-    int packetSize = udp.parsePacket();
+    int packetSize;
+    while ((packetSize = udp.parsePacket()) > 0) {  // drain every waiting packet
     if (packetSize >= 2) {
         uint8_t buffer[2];
         udp.read(buffer, 2);
 
         uint8_t stationId = buffer[0];
         uint8_t buttonMask = buffer[1];
+
+        if (stationId == SIMON_ID) {
+            handleSimon(buttonMask);
+            continue;
+        }
 
         // Validate station ID (1-4)
         if (stationId >= 1 && stationId <= MAX_STATIONS) {
@@ -1035,6 +1057,9 @@ void handleUDP() {
                 Serial.printf("Station %d: buttons=0x%02X\n", stationId, buttonMask);
                 lastDebug = now;
             }
+
+            // While Simon is paired, stations are recorded but don't change the plan.
+            if (currentPlan == PLAN_SIMON) continue;
 
             // Check if all 5 buttons pressed
             if (buttonMask == 0x1F) {
@@ -1097,6 +1122,10 @@ void handleUDP() {
             }
         }
     }
+
+    }  // while: drain packets
+
+    checkSimonTimeout();
 
     // Check for inactive stations and return to IDLE if all inactive
     checkStationTimeouts();
@@ -1394,5 +1423,63 @@ void playPartyMode() {
             break;
     }
 
+    FastLED.show();
+}
+
+/**
+ * Simon game (station ID 5): paired while packets keep arriving.
+ * 0x00 black, 0x01/0x02/0x04/0x08 red/green/blue/yellow, 0x20 pink,
+ * 0xFE win (PARTY, then IDLE), 0xFF unpair (IDLE).
+ */
+static bool simonValueToColor(uint8_t value, CRGB& out) {
+    switch (value) {
+        case 0x00: out = CRGB::Black; return true;
+        case 0x01: out = CRGB(255, 0, 0); return true;
+        case 0x02: out = CRGB(0, 255, 0); return true;
+        case 0x04: out = CRGB(0, 0, 255); return true;
+        case 0x08: out = CRGB(180, 180, 0); return true;  // same yellow as stations
+        case SIMON_PINK: out = CRGB(255, 20, 147); return true;
+        default: return false;
+    }
+}
+
+void handleSimon(uint8_t value) {
+    unsigned long now = millis();
+    if (value == SIMON_UNPAIR) {
+        if (currentPlan == PLAN_SIMON) {
+            Serial.println("Simon: unpaired - returning to IDLE");
+            currentPlan = PLAN_IDLE;
+        }
+        return;
+    }
+    if (value == SIMON_WIN) {
+        if (currentPlan == PLAN_SIMON) {
+            Serial.println("Simon: won - PARTY");
+            previousPlan = PLAN_IDLE;
+            partyModeStartTime = now;
+            currentPlan = PLAN_PARTY;
+        }
+        return;
+    }
+    CRGB color;
+    if (!simonValueToColor(value, color)) return;
+    if (currentPlan != PLAN_SIMON) Serial.println("Simon: paired");
+    currentPlan = PLAN_SIMON;
+    simonColor = color;
+    simonLastPacket = now;
+}
+
+void checkSimonTimeout() {
+    if (currentPlan == PLAN_SIMON && millis() - simonLastPacket > SIMON_TIMEOUT_MS) {
+        Serial.println("Simon: timed out - returning to IDLE");
+        currentPlan = PLAN_IDLE;
+    }
+}
+
+void playSimonPattern() {
+    // Instant (no easing) so short sequence steps stay readable.
+    fill_solid(leds_strip_1, NUM_LEDS_PER_STRIP, simonColor);
+    fill_solid(leds_strip_2, NUM_LEDS_PER_STRIP, simonColor);
+    fill_solid(leds_strip_3, NUM_LEDS_PER_STRIP, simonColor);
     FastLED.show();
 }
